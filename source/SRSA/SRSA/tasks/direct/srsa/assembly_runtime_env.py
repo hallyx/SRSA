@@ -6,7 +6,8 @@
 import os
 
 import torch
-from isaaclab.utils.math import quat_apply
+from isaaclab.sensors import ContactSensor
+from isaaclab.utils.math import quat_apply, quat_conjugate
 from isaaclab_tasks.direct.automate.assembly_tasks_cfg import ASSET_DIR
 
 from .task_family_config import TASK_FAMILY_CONFIG
@@ -161,6 +162,41 @@ class AssemblyRuntimeEnvMixin:
         task_cfg.eval_filename = os.environ.get("SRSA_EVAL_FILENAME", task_cfg.eval_filename)
         task_cfg.num_eval_trials = _read_int_env("SRSA_NUM_EVAL_TRIALS", int(task_cfg.num_eval_trials))
 
+        cfg.enable_flange_force_sensor = _read_bool_env(
+            "SRSA_ENABLE_FLANGE_FORCE_SENSOR",
+            bool(getattr(cfg, "enable_flange_force_sensor", False)),
+        )
+        cfg.flange_force_sensor_body_name = os.environ.get(
+            "SRSA_FLANGE_FORCE_SENSOR_BODY_NAME",
+            str(getattr(cfg, "flange_force_sensor_body_name", "panda_hand")),
+        )
+        cfg.flange_force_sensor_source = os.environ.get(
+            "SRSA_FLANGE_FORCE_SENSOR_SOURCE",
+            str(getattr(cfg, "flange_force_sensor_source", "held_sensor")),
+        )
+        cfg.flange_force_sensor_obs_frame = os.environ.get(
+            "SRSA_FLANGE_FORCE_SENSOR_OBS_FRAME",
+            str(getattr(cfg, "flange_force_sensor_obs_frame", "socket")),
+        )
+        cfg.flange_force_sensor_obs_scale = _read_float_env(
+            "SRSA_FLANGE_FORCE_SENSOR_OBS_SCALE",
+            float(getattr(cfg, "flange_force_sensor_obs_scale", 50.0)),
+        )
+        cfg.flange_force_sensor_force_threshold = _read_float_env(
+            "SRSA_FLANGE_FORCE_SENSOR_FORCE_THRESHOLD",
+            float(getattr(cfg, "flange_force_sensor_force_threshold", 1.0)),
+        )
+
+        sensor_cfg = getattr(cfg, "flange_force_sensor", None)
+        if sensor_cfg is not None:
+            sensor_cfg.prim_path = f"/World/envs/env_.*/Robot/{cfg.flange_force_sensor_body_name}"
+        if cfg.enable_flange_force_sensor:
+            if not getattr(cfg, "_srsa_flange_force_obs_augmented", False):
+                cfg.observation_space = int(getattr(cfg, "observation_space", 0)) + 3
+                cfg._srsa_flange_force_obs_augmented = True
+            if hasattr(cfg, "robot") and hasattr(cfg.robot, "spawn") and hasattr(cfg.robot.spawn, "activate_contact_sensors"):
+                cfg.robot.spawn.activate_contact_sensors = True
+
     @staticmethod
     def _apply_task_param_cfg_preview(task_cfg, effective_params: dict) -> None:
         if hasattr(task_cfg, "held_asset_cfg") and not hasattr(task_cfg, "_srsa_base_plug_diameter"):
@@ -186,9 +222,124 @@ class AssemblyRuntimeEnvMixin:
     def _init_tensors(self):
         super()._init_tensors()
         self._init_task_param_runtime()
+        self._init_flange_force_sensor_runtime()
         self._vision_noise_episode_local = torch.zeros((self.num_envs, 3), device=self.device)
         self._vision_noise_world = torch.zeros((self.num_envs, 3), device=self.device)
         self._vision_noise_cache_step = None
+
+    def _setup_scene(self):
+        super()._setup_scene()
+        self._flange_force_sensor = None
+        self._held_asset_contact_sensor = None
+        sensor_cfg = getattr(self.cfg, "flange_force_sensor", None)
+        if not getattr(self.cfg, "enable_flange_force_sensor", False):
+            return
+        if sensor_cfg is not None:
+            self._flange_force_sensor = ContactSensor(sensor_cfg)
+            self.scene.sensors["flange_force_sensor"] = self._flange_force_sensor
+        held_sensor_cfg = getattr(self.cfg, "held_asset_contact_sensor", None)
+        if held_sensor_cfg is not None:
+            self._held_asset_contact_sensor = ContactSensor(held_sensor_cfg)
+            self.scene.sensors["held_asset_contact_sensor"] = self._held_asset_contact_sensor
+
+    def _init_flange_force_sensor_runtime(self) -> None:
+        self.enable_flange_force_sensor = bool(getattr(self.cfg, "enable_flange_force_sensor", False))
+        self.flange_force_sensor_source = str(getattr(self.cfg, "flange_force_sensor_source", "held_sensor")).lower()
+        self.flange_force_sensor_obs_frame = str(getattr(self.cfg, "flange_force_sensor_obs_frame", "socket")).lower()
+        self.flange_force_sensor_obs_scale = float(getattr(self.cfg, "flange_force_sensor_obs_scale", 50.0))
+        self.flange_force_sensor_force_threshold = float(
+            getattr(self.cfg, "flange_force_sensor_force_threshold", 1.0)
+        )
+        self.flange_body_contact_force_world = torch.zeros((self.num_envs, 3), device=self.device)
+        self.held_sensor_contact_force_world = torch.zeros((self.num_envs, 3), device=self.device)
+        self.held_asset_contact_force_world = torch.zeros((self.num_envs, 3), device=self.device)
+        self.flange_force_world = torch.zeros((self.num_envs, 3), device=self.device)
+        self.flange_force_socket = torch.zeros((self.num_envs, 3), device=self.device)
+        self.flange_force_obs = torch.zeros((self.num_envs, 3), device=self.device)
+        self.flange_force_norm = torch.zeros((self.num_envs, 1), device=self.device)
+        self.flange_force_flag = torch.zeros((self.num_envs, 1), dtype=torch.bool, device=self.device)
+
+    def _compute_intermediate_values(self, dt):
+        super()._compute_intermediate_values(dt)
+        self._update_flange_force_sensor()
+
+    def _update_flange_force_sensor(self) -> None:
+        self.flange_body_contact_force_world.zero_()
+        self.held_sensor_contact_force_world.zero_()
+        self.held_asset_contact_force_world.zero_()
+        self.flange_force_world.zero_()
+        self.flange_force_socket.zero_()
+        self.flange_force_obs.zero_()
+        self.flange_force_norm.zero_()
+        self.flange_force_flag.zero_()
+
+        if not self.enable_flange_force_sensor:
+            return
+
+        if getattr(self, "_flange_force_sensor", None) is not None:
+            self.flange_body_contact_force_world[:] = self._coerce_contact_force_tensor(
+                self._flange_force_sensor.data.net_forces_w
+            )
+        if getattr(self, "_held_asset_contact_sensor", None) is not None:
+            self.held_sensor_contact_force_world[:] = self._coerce_contact_force_tensor(
+                self._held_asset_contact_sensor.data.net_forces_w
+            )
+        self.held_asset_contact_force_world[:] = self._get_asset_net_contact_force(getattr(self, "_held_asset", None))
+
+        if self.flange_force_sensor_source == "sensor":
+            net_forces = self.flange_body_contact_force_world
+        elif self.flange_force_sensor_source == "held_sensor":
+            net_forces = self.held_sensor_contact_force_world
+        elif self.flange_force_sensor_source == "auto":
+            body_norm = torch.linalg.norm(self.flange_body_contact_force_world, dim=-1, keepdim=True)
+            held_sensor_norm = torch.linalg.norm(self.held_sensor_contact_force_world, dim=-1, keepdim=True)
+            net_forces = torch.where(
+                body_norm > 1.0e-8,
+                self.flange_body_contact_force_world,
+                torch.where(
+                    held_sensor_norm > 1.0e-8,
+                    self.held_sensor_contact_force_world,
+                    self.held_asset_contact_force_world,
+                ),
+            )
+        else:
+            net_forces = self.held_asset_contact_force_world
+
+        self.flange_force_world[:] = net_forces
+        if hasattr(self, "fixed_quat"):
+            self.flange_force_socket[:] = quat_apply(quat_conjugate(self.fixed_quat), net_forces)
+        else:
+            self.flange_force_socket[:] = net_forces
+        if self.flange_force_sensor_obs_frame == "world":
+            obs_force = self.flange_force_world
+        else:
+            obs_force = self.flange_force_socket
+        self.flange_force_obs[:] = obs_force / max(self.flange_force_sensor_obs_scale, 1.0e-6)
+        self.flange_force_norm[:, 0] = torch.linalg.norm(self.flange_force_world, dim=-1)
+        self.flange_force_flag[:, 0] = self.flange_force_norm[:, 0] > self.flange_force_sensor_force_threshold
+
+    def _coerce_contact_force_tensor(self, net_forces) -> torch.Tensor:
+        if not isinstance(net_forces, torch.Tensor):
+            net_forces = torch.as_tensor(net_forces, device=self.device, dtype=torch.float32)
+        else:
+            net_forces = net_forces.to(device=self.device, dtype=torch.float32)
+
+        if net_forces.ndim == 4:
+            net_forces = net_forces[:, -1]
+        if net_forces.ndim == 3:
+            net_forces = net_forces.sum(dim=1)
+        if net_forces.ndim != 2 or net_forces.shape[-1] != 3:
+            return torch.zeros((self.num_envs, 3), device=self.device)
+        return net_forces
+
+    def _get_asset_net_contact_force(self, asset) -> torch.Tensor:
+        if asset is None or not hasattr(asset, "root_physx_view"):
+            return torch.zeros((self.num_envs, 3), device=self.device)
+        try:
+            net_forces = asset.root_physx_view.get_net_contact_forces(dt=self.physics_dt)
+        except Exception:
+            return torch.zeros((self.num_envs, 3), device=self.device)
+        return self._coerce_contact_force_tensor(net_forces)
 
     def _init_task_param_runtime(self) -> None:
         self.use_task_family = bool(getattr(self.cfg, "use_task_family", False))
@@ -254,6 +405,18 @@ class AssemblyRuntimeEnvMixin:
         self.extras["insertion_depth"] = float(self.current_task_params["insertion_depth"])
         self.extras["success_pos_tol"] = float(self.current_task_params["success_pos_tol"])
 
+    def _update_flange_force_extras(self) -> None:
+        if not hasattr(self, "extras") or not isinstance(self.extras, dict):
+            return
+
+        self.extras["flange_force_world"] = self.flange_force_world.detach().clone()
+        self.extras["flange_force_socket"] = self.flange_force_socket.detach().clone()
+        self.extras["flange_force_norm"] = self.flange_force_norm.detach().clone()
+        self.extras["flange_force_flag"] = self.flange_force_flag.detach().clone()
+        self.extras["flange_body_contact_force_world"] = self.flange_body_contact_force_world.detach().clone()
+        self.extras["held_sensor_contact_force_world"] = self.held_sensor_contact_force_world.detach().clone()
+        self.extras["held_asset_contact_force_world"] = self.held_asset_contact_force_world.detach().clone()
+
     def _augment_policy_observation_with_task_params(self, observations):
         if not self.task_param_obs or self.current_task_param_tensor is None:
             return observations
@@ -261,6 +424,16 @@ class AssemblyRuntimeEnvMixin:
         if isinstance(observations, dict) and isinstance(observations.get("policy"), torch.Tensor):
             observations = dict(observations)
             observations["policy"] = torch.cat([observations["policy"], self.current_task_param_tensor], dim=-1)
+            return observations
+        return observations
+
+    def _augment_policy_observation_with_flange_force(self, observations):
+        if not self.enable_flange_force_sensor:
+            return observations
+
+        if isinstance(observations, dict) and isinstance(observations.get("policy"), torch.Tensor):
+            observations = dict(observations)
+            observations["policy"] = torch.cat([observations["policy"], self.flange_force_obs], dim=-1)
             return observations
         return observations
 
@@ -312,6 +485,8 @@ class AssemblyRuntimeEnvMixin:
         ):
             observations = super()._get_observations()
             self._update_task_param_extras()
+            self._update_flange_force_extras()
+            observations = self._augment_policy_observation_with_flange_force(observations)
             return self._augment_policy_observation_with_task_params(observations)
 
         self._refresh_vision_noise_cache()
@@ -322,4 +497,6 @@ class AssemblyRuntimeEnvMixin:
         finally:
             self.gripper_goal_pos = true_goal_pos
         self._update_task_param_extras()
+        self._update_flange_force_extras()
+        observations = self._augment_policy_observation_with_flange_force(observations)
         return self._augment_policy_observation_with_task_params(observations)

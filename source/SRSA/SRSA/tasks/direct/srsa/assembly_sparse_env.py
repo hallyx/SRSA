@@ -18,18 +18,26 @@ class AssemblySparseEnv(AssemblyRuntimeEnvMixin, AssemblyEnv):
     def _get_rewards(self):
         """Update rewards and compute success statistics."""
         # Get successful and failed envs at current timestep
+        insertion_depth = self.disassembly_dists
+        close_error_thresh = self.cfg_task.close_error_thresh
+        if hasattr(self, "current_insertion_depth"):
+            insertion_depth = torch.full_like(self.disassembly_dists, float(self.current_insertion_depth))
+        if hasattr(self, "current_close_error_thresh"):
+            close_error_thresh = float(self.current_close_error_thresh)
 
         curr_successes = automate_algo.check_plug_inserted_in_socket(
             self.held_pos,
             self.fixed_pos,
-            self.disassembly_dists,
+            insertion_depth,
             self.keypoints_held,
             self.keypoints_fixed,
-            self.cfg_task.close_error_thresh,
+            close_error_thresh,
             self.episode_length_buf,
         )
 
         rew_buf = self._update_rew_buf(curr_successes)
+        if hasattr(self, "_update_task_param_extras"):
+            self._update_task_param_extras()
         
         # Only log episode success rates at the end of an episode.
         if torch.any(self.reset_buf):

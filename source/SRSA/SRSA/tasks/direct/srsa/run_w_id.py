@@ -5,16 +5,17 @@
 
 import argparse
 import os
+import random
 import subprocess
 import sys
 
 
 def _repo_root() -> str:
-    return os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../../../.."))
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../../.."))
 
 
 def _srsa_root() -> str:
-    return os.path.join(_repo_root(), "SRSA")
+    return _repo_root()
 
 
 def _resolve_local_file_arg(path: str | None) -> str | None:
@@ -64,12 +65,51 @@ def _resolve_task_id(sil: bool, sparse: bool) -> str:
     return "Assembly-Sparse-v0" if sparse else "Assembly-Direct-v0"
 
 
+def _sample_optional_range(rng: random.Random, bounds: tuple[float, float] | list[float] | None) -> float | None:
+    if not bounds:
+        return None
+    lower, upper = float(bounds[0]), float(bounds[1])
+    if upper < lower:
+        lower, upper = upper, lower
+    return rng.uniform(lower, upper)
+
+
+def _resolve_task_param_values(args) -> dict[str, float | str | int]:
+    rng_seed = args.sample_seed
+    if rng_seed is None and args.seed is not None and args.seed >= 0:
+        rng_seed = int(args.seed)
+    rng = random.Random(rng_seed)
+
+    resolved = {
+        "task_family_name": args.task_family_name,
+        "task_family_id": args.task_family_id,
+        "plug_diameter": args.plug_diameter
+        if args.plug_diameter is not None
+        else _sample_optional_range(rng, args.sample_plug_diameter),
+        "hole_diameter": args.hole_diameter
+        if args.hole_diameter is not None
+        else _sample_optional_range(rng, args.sample_hole_diameter),
+        "clearance": args.clearance if args.clearance is not None else _sample_optional_range(rng, args.sample_clearance),
+        "clearance_ratio": args.clearance_ratio
+        if args.clearance_ratio is not None
+        else _sample_optional_range(rng, args.sample_clearance_ratio),
+        "insertion_depth": args.insertion_depth
+        if args.insertion_depth is not None
+        else _sample_optional_range(rng, args.sample_insertion_depth),
+        "success_pos_tol": args.success_pos_tol
+        if args.success_pos_tol is not None
+        else _sample_optional_range(rng, args.sample_success_pos_tol),
+    }
+    return {key: value for key, value in resolved.items() if value is not None}
+
+
 def main():
     parser = argparse.ArgumentParser(description="Launch SRSA assembly train/eval with runtime overrides.")
     parser.add_argument("--assembly_id", type=str, required=True, help="Assembly id to evaluate or train on.")
     parser.add_argument("--checkpoint", type=str, help="Checkpoint path for evaluation.")
     parser.add_argument("--load_mode", type=str, default="actor", help="Load checkpoint mode for training.")
     parser.add_argument("--num_envs", type=int, default=128, help="Number of parallel environments.")
+    parser.add_argument("--device", type=str, default="cuda:0", help="Simulation and RL device, e.g. cuda:0.")
     parser.add_argument("--seed", type=int, default=-1, help="Random seed used for training.")
     parser.add_argument("--train", action="store_true", help="Run training mode.")
     parser.add_argument("--sil", action="store_true", help="Use self-imitation learning.")
@@ -94,6 +134,98 @@ def main():
         default=0.0,
         help="Per-step socket-frame XY jitter std in meters.",
     )
+    parser.add_argument(
+        "--task_family_name",
+        type=str,
+        default=None,
+        help="Named fit family to use, e.g. normal_fit, loose_fit, or tight_fit.",
+    )
+    parser.add_argument(
+        "--task_family_id",
+        type=int,
+        default=None,
+        help="Numeric fit-family id override.",
+    )
+    parser.add_argument("--plug_diameter", type=float, default=None, help="Explicit plug diameter in meters.")
+    parser.add_argument("--hole_diameter", type=float, default=None, help="Explicit hole diameter in meters.")
+    parser.add_argument("--clearance", type=float, default=None, help="Explicit diametral clearance in meters.")
+    parser.add_argument(
+        "--clearance_ratio",
+        type=float,
+        default=None,
+        help="Explicit clearance ratio relative to plug diameter.",
+    )
+    parser.add_argument("--insertion_depth", type=float, default=None, help="Explicit insertion depth in meters.")
+    parser.add_argument(
+        "--success_pos_tol",
+        type=float,
+        default=None,
+        help="Explicit success position tolerance in meters.",
+    )
+    parser.add_argument(
+        "--sample_plug_diameter",
+        type=float,
+        nargs=2,
+        metavar=("MIN", "MAX"),
+        default=None,
+        help="Uniformly sample plug diameter once for this run.",
+    )
+    parser.add_argument(
+        "--sample_hole_diameter",
+        type=float,
+        nargs=2,
+        metavar=("MIN", "MAX"),
+        default=None,
+        help="Uniformly sample hole diameter once for this run.",
+    )
+    parser.add_argument(
+        "--sample_clearance",
+        type=float,
+        nargs=2,
+        metavar=("MIN", "MAX"),
+        default=None,
+        help="Uniformly sample diametral clearance once for this run.",
+    )
+    parser.add_argument(
+        "--sample_clearance_ratio",
+        type=float,
+        nargs=2,
+        metavar=("MIN", "MAX"),
+        default=None,
+        help="Uniformly sample clearance ratio once for this run.",
+    )
+    parser.add_argument(
+        "--sample_insertion_depth",
+        type=float,
+        nargs=2,
+        metavar=("MIN", "MAX"),
+        default=None,
+        help="Uniformly sample insertion depth once for this run.",
+    )
+    parser.add_argument(
+        "--sample_success_pos_tol",
+        type=float,
+        nargs=2,
+        metavar=("MIN", "MAX"),
+        default=None,
+        help="Uniformly sample success position tolerance once for this run.",
+    )
+    parser.add_argument(
+        "--sample_seed",
+        type=int,
+        default=None,
+        help="Seed used for continuous task-parameter sampling.",
+    )
+    parser.add_argument(
+        "--task_param_obs",
+        action="store_true",
+        help="Append task parameters to policy observations. This changes the observation dimension.",
+    )
+    parser.add_argument(
+        "--disable_task_param_obs",
+        action="store_true",
+        help="Compatibility flag; task-param observations are disabled by default.",
+    )
     parser.add_argument("--headless", action="store_true", help="Run in headless mode.")
     args = parser.parse_args()
 
@@ -104,6 +236,8 @@ def main():
 
     task = _resolve_task_id(args.sil, args.sparse)
     checkpoint_arg = _resolve_local_file_arg(args.checkpoint)
+    task_param_values = _resolve_task_param_values(args)
+    task_param_active = bool(task_param_values)
 
     env = os.environ.copy()
     env["SRSA_ASSEMBLY_ID"] = args.assembly_id
@@ -113,6 +247,21 @@ def main():
     env["SRSA_NUM_EVAL_TRIALS"] = str(args.num_eval_trials)
     env["VISION_NOISE_XY_STD"] = str(float(args.vision_noise))
     env["VISION_NOISE_XY_JITTER_STD"] = str(float(args.vision_jitter))
+    env["SRSA_TASK_PARAM_OBS"] = "1" if args.task_param_obs and not args.disable_task_param_obs else "0"
+
+    env_var_map = {
+        "task_family_name": "SRSA_TASK_FAMILY_NAME",
+        "task_family_id": "SRSA_TASK_FAMILY_ID",
+        "plug_diameter": "SRSA_PLUG_DIAMETER",
+        "hole_diameter": "SRSA_HOLE_DIAMETER",
+        "clearance": "SRSA_CLEARANCE",
+        "clearance_ratio": "SRSA_CLEARANCE_RATIO",
+        "insertion_depth": "SRSA_INSERTION_DEPTH",
+        "success_pos_tol": "SRSA_SUCCESS_POS_TOL",
+    }
+    for key, env_name in env_var_map.items():
+        if key in task_param_values:
+            env[env_name] = str(task_param_values[key])
 
     srsa_root = _srsa_root()
     srsa_python_root = os.path.join(srsa_root, "source", "SRSA")
@@ -144,6 +293,7 @@ def main():
         )
 
     command.append(f"--num_envs={args.num_envs}")
+    command.append(f"--device={args.device}")
 
     if checkpoint_arg:
         command.append(f"--checkpoint={checkpoint_arg}")

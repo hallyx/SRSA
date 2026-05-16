@@ -67,12 +67,20 @@ class A2CSILAgent(A2CAgent):
         self.retrieve_demo_num = self.config["retrieve_demo_num"] if "retrieve_demo_num" in self.config else 100
         self.skill_mode = self.config["skill_mode"] if "skill_mode" in self.config else "select"
 
-        if len(params["checkpoint"]) == 1:
-            self.checkpoint = params["checkpoint"][0]
+        checkpoints = params.get("checkpoint") or []
+        if isinstance(checkpoints, str):
+            checkpoints = [checkpoints]
+        checkpoints = [ckpt for ckpt in checkpoints if ckpt]
+
+        if len(checkpoints) == 0:
+            self.checkpoint = None
+            self.checkpoints = None
+        elif len(checkpoints) == 1:
+            self.checkpoint = checkpoints[0]
             self.checkpoints = None
         else:
             self.checkpoint = None
-            self.checkpoints = params["checkpoint"]
+            self.checkpoints = checkpoints
 
         self.load_mode = params["load_mode"]
 
@@ -623,7 +631,12 @@ class A2CSILAgent(A2CAgent):
 
         while True:
             epoch_num = self.update_epoch()
-            if self.retrieve_demo_num > 0 and epoch_num % self.retrieve_demo_freq == 0 and epoch_num > 0:
+            if (
+                self.checkpoint is not None
+                and self.retrieve_demo_num > 0
+                and epoch_num % self.retrieve_demo_freq == 0
+                and epoch_num > 0
+            ):
                 self.retrieve_skill_demo(self.checkpoint)
 
             (

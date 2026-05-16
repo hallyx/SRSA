@@ -21,13 +21,23 @@ from rl_games.algos_torch import sac_agent
 
 
 def _restore(agent, args):
-    if 'checkpoint' in args and args['checkpoint'] is not None and args['checkpoint'][0] !='':
-        if args['load_mode'] == 'actor':
-            agent.restore_actor(args['checkpoint'][0])
-        elif args['load_mode'] == 'model':
-            agent.restore_model(args['checkpoint'][0])
-        else:
-            agent.restore(args['checkpoint'][0])
+    checkpoint_arg = args.get('checkpoint')
+    if checkpoint_arg is None:
+        return
+    if isinstance(checkpoint_arg, str):
+        checkpoint_arg = [checkpoint_arg]
+
+    checkpoints = [checkpoint for checkpoint in checkpoint_arg if checkpoint]
+    if not checkpoints:
+        return
+
+    checkpoint = checkpoints[0]
+    if args['load_mode'] == 'actor':
+        agent.restore_actor(checkpoint)
+    elif args['load_mode'] == 'model':
+        agent.restore_model(checkpoint)
+    else:
+        agent.restore(checkpoint)
 
 def _override_sigma(agent, args):
     if 'sigma' in args and args['sigma'] is not None:

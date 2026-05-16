@@ -14,7 +14,7 @@ gym.register(
     entry_point=f"{__name__}.assembly_direct_env:AssemblyDirectEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": "isaaclab_tasks.direct.automate.assembly_env_cfg:AssemblyEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.assembly_task_param_cfg:AssemblyTaskParamEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
     },
 )
@@ -24,7 +24,7 @@ gym.register(
     entry_point=f"{__name__}.assembly_direct_env:AssemblyDirectEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": "isaaclab_tasks.direct.automate.assembly_env_cfg:AssemblyEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.assembly_task_param_cfg:AssemblyTaskParamEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_sil_cfg.yaml",
     },
 )
@@ -34,7 +34,7 @@ gym.register(
     entry_point=f"{__name__}.assembly_sparse_env:AssemblySparseEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": "isaaclab_tasks.direct.automate.assembly_env_cfg:AssemblyEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.assembly_task_param_cfg:AssemblyTaskParamEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
     },
 )
@@ -44,7 +44,7 @@ gym.register(
     entry_point=f"{__name__}.assembly_sparse_env:AssemblySparseEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": "isaaclab_tasks.direct.automate.assembly_env_cfg:AssemblyEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.assembly_task_param_cfg:AssemblyTaskParamEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_sil_cfg.yaml",
     },
 )

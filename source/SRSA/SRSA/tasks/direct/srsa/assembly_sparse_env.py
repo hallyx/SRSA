@@ -3,24 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import carb
-import isaaclab.sim as sim_utils
-import isaacsim.core.utils.torch as torch_utils
-import numpy as np
 import torch
 from isaaclab_tasks.direct.automate import automate_algo_utils as automate_algo
 from isaaclab_tasks.direct.automate import automate_log_utils as automate_log
-from isaaclab_tasks.direct.automate import factory_control as fc
 from isaaclab_tasks.direct.automate.assembly_env import AssemblyEnv
 from isaaclab_tasks.direct.automate.assembly_env_cfg import AssemblyEnvCfg
 
+from .assembly_runtime_env import AssemblyRuntimeEnvMixin
 
-class AssemblySparseEnv(AssemblyEnv):
+
+class AssemblySparseEnv(AssemblyRuntimeEnvMixin, AssemblyEnv):
     cfg: AssemblyEnvCfg
-
-    def __init__(self, cfg: AssemblyEnvCfg, render_mode: str | None = None, **kwargs):
-
-        super().__init__(cfg, render_mode, **kwargs)
 
     def _get_rewards(self):
         """Update rewards and compute success statistics."""
@@ -61,7 +54,7 @@ class AssemblySparseEnv(AssemblyEnv):
 
             self.extras["curr_max_disp"] = self.curr_max_disp
 
-            print('Success', torch.mean(self.ep_succeeded.float()).item())
+            print("Success", torch.mean(self.ep_succeeded.float()).item())
 
             if self.cfg_task.if_logging_eval:
                 self.success_log = torch.cat([self.success_log, self.ep_succeeded.reshape((self.num_envs, 1))], dim=0)
@@ -71,7 +64,7 @@ class AssemblySparseEnv(AssemblyEnv):
                         self.held_asset_pose_log,
                         self.fixed_asset_pose_log,
                         self.success_log,
-                        self.eval_logging_filename,
+                        self.cfg_task.eval_filename,
                     )
                     exit(0)
 
@@ -94,4 +87,3 @@ class AssemblySparseEnv(AssemblyEnv):
             self.extras[f"logs_rew_{rew_name}"] = rew.mean()
 
         return rew_buf
-

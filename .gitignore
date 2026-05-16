@@ -1,0 +1,26 @@
+# Extracted runtime resources documented in README.
+/data/
+/checkpoints/
+
+# Training and evaluation outputs.
+**/ckpt/
+/runs/
+/nn/
+/tmp.pth
+/evaluation_*.h5
+
+# Runtime-generated exports from assembly/disassembly scripts.
+/disassemble_traj.json
+/disassembly_dist.json
+/plug.obj
+/socket.obj
+/plug_grasps.json
+
+# Python caches and local build artifacts.
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+build/
+dist/
+*.egg-info/

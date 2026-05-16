@@ -50,8 +50,24 @@ simulation_app = app_launcher.app
 import gymnasium as gym
 import math
 import os
+import sys
 import time
 import torch
+
+
+def _prepend_local_python_roots():
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    srsa_root = os.path.abspath(os.path.join(script_dir, "..", ".."))
+    python_roots = [
+        os.path.join(srsa_root, "source", "SRSA"),
+        os.path.join(srsa_root, "rl_games_sil"),
+    ]
+    for path in reversed(python_roots):
+        if path not in sys.path:
+            sys.path.insert(0, path)
+
+
+_prepend_local_python_roots()
 
 from rl_games.common import env_configurations, vecenv
 from rl_games.common.player import BasePlayer
@@ -60,7 +76,7 @@ from rl_games.torch_runner import Runner
 from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
-from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
+from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
 from isaaclab_rl.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
 

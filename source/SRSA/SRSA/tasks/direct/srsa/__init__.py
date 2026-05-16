@@ -11,7 +11,7 @@ from . import agents
 
 gym.register(
     id="Assembly-Direct-v0",
-    entry_point="isaaclab_tasks.direct.automate.assembly_env:AssemblyEnv",
+    entry_point=f"{__name__}.assembly_direct_env:AssemblyDirectEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": "isaaclab_tasks.direct.automate.assembly_env_cfg:AssemblyEnvCfg",
@@ -21,7 +21,7 @@ gym.register(
 
 gym.register(
     id="Assembly-Direct-Sil-v0",
-    entry_point="isaaclab_tasks.direct.automate.assembly_env:AssemblyEnv",
+    entry_point=f"{__name__}.assembly_direct_env:AssemblyDirectEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": "isaaclab_tasks.direct.automate.assembly_env_cfg:AssemblyEnvCfg",

@@ -22,7 +22,7 @@ SRSA is a framework to retrieve relevant skills from pre-existing skill library 
   We recommend using the conda installation as it simplifies calling Python scripts from the terminal.In addition, we set the environment variable:
 
     ```bash
-    export FULL_PATH_TO_ISAACLAB=/path/to/Isaaclab/repository/
+    export FULL_PATH_TO_ISAACLAB=/home/IsaacLab/
     ```
 
 - Clone or copy this repository `SRSA` separately from the Isaac Lab installation (i.e. outside the `IsaacLab` directory). Note to clone this repository with large file storage, by installing and initiating the Git LFS extension.

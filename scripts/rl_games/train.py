@@ -49,7 +49,23 @@ import gymnasium as gym
 import math
 import os
 import random
+import sys
 from datetime import datetime
+
+
+def _prepend_local_python_roots():
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    srsa_root = os.path.abspath(os.path.join(script_dir, "..", ".."))
+    python_roots = [
+        os.path.join(srsa_root, "source", "SRSA"),
+        os.path.join(srsa_root, "rl_games_sil"),
+    ]
+    for path in reversed(python_roots):
+        if path not in sys.path:
+            sys.path.insert(0, path)
+
+
+_prepend_local_python_roots()
 
 from isaaclab_rl.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
 from rl_games.common import env_configurations, vecenv

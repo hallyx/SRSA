@@ -20,9 +20,13 @@ class AssemblySparseEnv(AssemblyRuntimeEnvMixin, AssemblyEnv):
         # Get successful and failed envs at current timestep
         insertion_depth = self.disassembly_dists
         close_error_thresh = self.cfg_task.close_error_thresh
-        if hasattr(self, "current_insertion_depth"):
+        if hasattr(self, "current_insertion_depth_tensor"):
+            insertion_depth = self.current_insertion_depth_tensor
+        elif hasattr(self, "current_insertion_depth"):
             insertion_depth = torch.full_like(self.disassembly_dists, float(self.current_insertion_depth))
-        if hasattr(self, "current_close_error_thresh"):
+        if hasattr(self, "current_close_error_thresh_tensor"):
+            close_error_thresh = self.current_close_error_thresh_tensor
+        elif hasattr(self, "current_close_error_thresh"):
             close_error_thresh = float(self.current_close_error_thresh)
 
         curr_successes = automate_algo.check_plug_inserted_in_socket(

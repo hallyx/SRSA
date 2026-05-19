@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from .task_family_config import (
     BASE_HOLE_DIAMETER,
     BASE_PLUG_DIAMETER,
@@ -25,6 +27,19 @@ TASK_PARAM_TENSOR_FIELD_ORDER = [
     "plug_scale_xy",
     "hole_scale_xy",
 ]
+
+AXIAL_TASK_VEC_FIELD_ORDER = [
+    "task_type_id_float",
+    "log_scale",
+    "clearance_abs_norm",
+    "clearance_rel_norm",
+    "depth_abs_norm",
+    "yaw_requirement_float",
+]
+
+NEWT_STATE_DIM = 128
+NEWT_ACTION_DIM = 16
+SRSA_ACTION_DIM = 6
 
 
 def _get_cfg_value(cfg_like, key: str, default):
@@ -144,9 +159,200 @@ def resolve_effective_task_params(
 def make_task_param_tensor(effective_params, num_envs, device):
     import torch
 
-    tensor = torch.tensor(
-        [float(effective_params[field_name]) for field_name in TASK_PARAM_TENSOR_FIELD_ORDER],
-        dtype=torch.float32,
-        device=device,
-    ).unsqueeze(0)
-    return tensor.repeat(int(num_envs), 1)
+    columns = []
+    for field_name in TASK_PARAM_TENSOR_FIELD_ORDER:
+        value = effective_params[field_name]
+        if isinstance(value, torch.Tensor):
+            field = value.to(device=device, dtype=torch.float32).reshape(-1)
+            if field.numel() == 1:
+                field = field.repeat(int(num_envs))
+        else:
+            field = torch.full((int(num_envs),), float(value), dtype=torch.float32, device=device)
+        columns.append(field[: int(num_envs)])
+    return torch.stack(columns, dim=-1)
+
+
+@dataclass
+class AxialTaskParamSamplerCfg:
+    enabled: bool = True
+    task_type_id: int = 0
+    scale_range: list[float] | tuple[float, float] | None = None
+    clearance_range: list[float] | tuple[float, float] | None = None
+    clearance_ratio_range: list[float] | tuple[float, float] | None = None
+    target_depth_range: list[float] | tuple[float, float] | None = None
+    init_error_xy_range: list[float] | tuple[float, float] | None = None
+    init_error_z_range: list[float] | tuple[float, float] | None = None
+    init_error_yaw_range: list[float] | tuple[float, float] | None = None
+    visual_noise_xy_range: list[float] | tuple[float, float] | None = None
+    visual_noise_z_range: list[float] | tuple[float, float] | None = None
+    yaw_requirement: bool = False
+    reference_radius: float = BASE_PLUG_DIAMETER * 0.5
+    reference_depth: float = 0.015
+
+
+def _range_or_fixed(bounds, fixed_value: float) -> tuple[float, float]:
+    if bounds is None:
+        return float(fixed_value), float(fixed_value)
+    lower, upper = float(bounds[0]), float(bounds[1])
+    if upper < lower:
+        lower, upper = upper, lower
+    return lower, upper
+
+
+class AxialTaskParamSampler:
+    """Reset-time sampler for axial mating parameters.
+
+    The sampled task vector is intentionally param-only: it excludes assembly id,
+    task id, initial pose error, and visual noise.
+    """
+
+    def __init__(
+        self,
+        *,
+        cfg: AxialTaskParamSamplerCfg,
+        base_task_cfg,
+        effective_params: dict,
+        baseline_insertion_depth: float,
+        vision_noise_xy_std: float = 0.0,
+        vision_noise_z_std: float = 0.0,
+    ):
+        self.cfg = cfg
+        self.base_task_cfg = base_task_cfg
+        self.effective_params = dict(effective_params)
+        self.baseline_insertion_depth = float(baseline_insertion_depth)
+        self.vision_noise_xy_std = float(vision_noise_xy_std)
+        self.vision_noise_z_std = float(vision_noise_z_std)
+
+        self.base_plug_diameter = float(
+            _get_cfg_value(
+                base_task_cfg,
+                "_srsa_base_plug_diameter",
+                _get_cfg_value(_get_cfg_value(base_task_cfg, "held_asset_cfg", None), "diameter", BASE_PLUG_DIAMETER),
+            )
+        )
+        self.base_hole_diameter = float(
+            _get_cfg_value(
+                base_task_cfg,
+                "_srsa_base_hole_diameter",
+                _get_cfg_value(_get_cfg_value(base_task_cfg, "fixed_asset_cfg", None), "diameter", BASE_HOLE_DIAMETER),
+            )
+        )
+        self.default_scale = float(self.effective_params.get("plug_scale_xy", 1.0))
+        self.default_clearance = float(self.effective_params.get("diametral_clearance", 0.0))
+        self.default_depth = float(self.effective_params.get("insertion_depth", self.baseline_insertion_depth))
+        self.default_success_pos_tol = float(self.effective_params.get("success_pos_tol", 0.015))
+
+    @staticmethod
+    def _uniform(bounds: tuple[float, float], shape, device):
+        import torch
+
+        lower, upper = bounds
+        if abs(upper - lower) <= 1.0e-12:
+            return torch.full(shape, float(lower), dtype=torch.float32, device=device)
+        return torch.rand(shape, dtype=torch.float32, device=device) * (upper - lower) + lower
+
+    @classmethod
+    def _signed_uniform(cls, bounds, shape, device, fixed_value: float = 0.0):
+        import torch
+
+        lower, upper = _range_or_fixed(bounds, fixed_value)
+        if lower < 0.0:
+            return cls._uniform((lower, upper), shape, device)
+        magnitude = cls._uniform((lower, upper), shape, device)
+        signs = torch.where(
+            torch.rand(shape, dtype=torch.float32, device=device) < 0.5,
+            -torch.ones(shape, dtype=torch.float32, device=device),
+            torch.ones(shape, dtype=torch.float32, device=device),
+        )
+        return magnitude * signs
+
+    def sample(self, num_samples: int, device):
+        import torch
+
+        n = int(num_samples)
+        eps = 1.0e-8
+        scale = self._uniform(_range_or_fixed(self.cfg.scale_range, self.default_scale), (n,), device)
+        plug_diameter = self.base_plug_diameter * scale
+
+        if self.cfg.clearance_ratio_range is not None:
+            clearance_ratio = self._uniform(_range_or_fixed(self.cfg.clearance_ratio_range, 0.0), (n,), device)
+            diametral_clearance = plug_diameter * clearance_ratio
+        else:
+            diametral_clearance = self._uniform(
+                _range_or_fixed(self.cfg.clearance_range, self.default_clearance), (n,), device
+            )
+            clearance_ratio = diametral_clearance / plug_diameter.clamp_min(eps)
+
+        diametral_clearance = diametral_clearance.clamp_min(0.0)
+        radial_clearance = 0.5 * diametral_clearance
+        hole_diameter = plug_diameter + diametral_clearance
+        hole_scale_xy = hole_diameter / max(self.base_hole_diameter, eps)
+
+        target_depth = self._uniform(_range_or_fixed(self.cfg.target_depth_range, self.default_depth), (n,), device)
+        target_depth = target_depth.clamp_min(0.0)
+        success_pos_tol = torch.full((n,), self.default_success_pos_tol, dtype=torch.float32, device=device)
+
+        init_error = torch.zeros((n, 3), dtype=torch.float32, device=device)
+        held_asset_noise = _get_cfg_value(self.base_task_cfg, "held_asset_init_pos_noise", [0.0, 0.0, 0.0])
+        default_xy = float(max(abs(float(held_asset_noise[0])), abs(float(held_asset_noise[1]))))
+        default_z = float(abs(float(held_asset_noise[2])))
+        init_error[:, :2] = self._signed_uniform(self.cfg.init_error_xy_range, (n, 2), device, default_xy)
+        init_error[:, 2] = self._signed_uniform(self.cfg.init_error_z_range, (n,), device, default_z)
+        init_yaw_error = self._signed_uniform(self.cfg.init_error_yaw_range, (n,), device, 0.0)
+
+        visual_noise = torch.zeros((n, 3), dtype=torch.float32, device=device)
+        if self.cfg.visual_noise_xy_range is None:
+            if self.vision_noise_xy_std > 0.0:
+                visual_noise[:, :2] = torch.randn((n, 2), dtype=torch.float32, device=device) * self.vision_noise_xy_std
+        else:
+            visual_noise[:, :2] = self._signed_uniform(self.cfg.visual_noise_xy_range, (n, 2), device, 0.0)
+        if self.cfg.visual_noise_z_range is None:
+            if self.vision_noise_z_std > 0.0:
+                visual_noise[:, 2] = torch.randn((n,), dtype=torch.float32, device=device) * self.vision_noise_z_std
+        else:
+            visual_noise[:, 2] = self._signed_uniform(self.cfg.visual_noise_z_range, (n,), device, 0.0)
+
+        male_radius = 0.5 * plug_diameter
+        reference_radius = max(float(self.cfg.reference_radius), eps)
+        reference_depth = max(float(self.cfg.reference_depth), eps)
+        yaw_requirement = torch.full(
+            (n,), 1.0 if bool(self.cfg.yaw_requirement) else 0.0, dtype=torch.float32, device=device
+        )
+        task_type = torch.full((n,), float(self.cfg.task_type_id), dtype=torch.float32, device=device)
+        task_vec = torch.stack(
+            [
+                task_type,
+                torch.log(scale.clamp_min(eps)),
+                radial_clearance / reference_radius,
+                radial_clearance / male_radius.clamp_min(eps),
+                target_depth / reference_depth,
+                yaw_requirement,
+            ],
+            dim=-1,
+        )
+
+        return {
+            "task_family_id": torch.full((n,), int(self.effective_params.get("task_family_id", -1)), device=device),
+            "task_type_id_float": task_type,
+            "plug_diameter": plug_diameter,
+            "hole_diameter": hole_diameter,
+            "clearance": diametral_clearance,
+            "diametral_clearance": diametral_clearance,
+            "radial_clearance": radial_clearance,
+            "clearance_ratio": clearance_ratio,
+            "success_pos_tol": success_pos_tol,
+            "insertion_depth": target_depth,
+            "target_insertion_depth": target_depth,
+            "plug_scale_xy": scale,
+            "hole_scale_xy": hole_scale_xy,
+            "scale_ratio": scale,
+            "log_scale": torch.log(scale.clamp_min(eps)),
+            "clearance_abs_norm": radial_clearance / reference_radius,
+            "clearance_rel_norm": radial_clearance / male_radius.clamp_min(eps),
+            "depth_abs_norm": target_depth / reference_depth,
+            "yaw_requirement_float": yaw_requirement,
+            "task_vec": task_vec,
+            "initial_error_pos": init_error,
+            "initial_error_yaw": init_yaw_error,
+            "visual_noise_local": visual_noise,
+        }

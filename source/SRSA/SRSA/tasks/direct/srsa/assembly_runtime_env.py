@@ -5,14 +5,23 @@
 
 import os
 
+import gymnasium as gym
+import numpy as np
 import torch
+import isaacsim.core.utils.torch as torch_utils
 from isaaclab.sensors import ContactSensor
 from isaaclab.utils.math import quat_apply, quat_conjugate
 from isaaclab_tasks.direct.automate.assembly_tasks_cfg import ASSET_DIR
 
 from .task_family_config import TASK_FAMILY_CONFIG
 from .task_param_utils import (
+    AXIAL_TASK_VEC_FIELD_ORDER,
+    NEWT_ACTION_DIM,
+    NEWT_STATE_DIM,
+    SRSA_ACTION_DIM,
     TASK_PARAM_TENSOR_FIELD_ORDER,
+    AxialTaskParamSampler,
+    AxialTaskParamSamplerCfg,
     make_task_param_tensor,
     resolve_effective_task_params,
     resolve_task_family_config,
@@ -54,6 +63,17 @@ def _read_optional_int_env(name: str) -> int | None:
     return int(value)
 
 
+def _read_optional_float_pair_env(name: str, default=None):
+    value = os.environ.get(name)
+    if value is None or value.strip() == "":
+        return default
+    normalized = value.replace(":", ",").replace(";", ",")
+    parts = [item.strip() for item in normalized.split(",") if item.strip()]
+    if len(parts) != 2:
+        raise ValueError(f"{name} must contain exactly two floats, got {value!r}.")
+    return [float(parts[0]), float(parts[1])]
+
+
 class AssemblyRuntimeEnvMixin:
     """Runtime task overrides, task parameterization, plus observation-only vision noise."""
 
@@ -77,6 +97,8 @@ class AssemblyRuntimeEnvMixin:
             float(getattr(task_cfg, "vision_noise_z_jitter_std", 0.0)),
         )
         super().__init__(cfg, render_mode, **kwargs)
+        self._init_post_super_runtime()
+        self._configure_runtime_gym_spaces()
 
     @staticmethod
     def _apply_runtime_task_overrides(cfg) -> None:
@@ -130,7 +152,64 @@ class AssemblyRuntimeEnvMixin:
             "SRSA_TASK_PARAM_OBS",
             bool(getattr(cfg, "task_param_obs", False)),
         )
-        use_task_param = bool(use_task_family or runtime_task_param_overrides)
+        newt_obs = _read_bool_env("SRSA_NEWT_OBS", bool(getattr(cfg, "newt_obs", False)))
+        enable_axial_task_param_sampler = _read_bool_env(
+            "SRSA_ENABLE_AXIAL_TASK_PARAM_SAMPLER",
+            bool(getattr(cfg, "enable_axial_task_param_sampler", True)),
+        )
+        cfg.newt_obs = newt_obs
+        cfg.newt_state_dim = int(getattr(cfg, "newt_state_dim", NEWT_STATE_DIM))
+        cfg.newt_action_dim = int(getattr(cfg, "newt_action_dim", NEWT_ACTION_DIM))
+        cfg.newt_task_dim = len(AXIAL_TASK_VEC_FIELD_ORDER)
+        cfg.axial_task_type_id = _read_int_env(
+            "SRSA_AXIAL_TASK_TYPE_ID", int(getattr(cfg, "axial_task_type_id", 0))
+        )
+        cfg.axial_scale_range = _read_optional_float_pair_env(
+            "SRSA_AXIAL_SCALE_RANGE", getattr(cfg, "axial_scale_range", None)
+        )
+        cfg.axial_clearance_range = _read_optional_float_pair_env(
+            "SRSA_AXIAL_CLEARANCE_RANGE", getattr(cfg, "axial_clearance_range", None)
+        )
+        cfg.axial_clearance_ratio_range = _read_optional_float_pair_env(
+            "SRSA_AXIAL_CLEARANCE_RATIO_RANGE", getattr(cfg, "axial_clearance_ratio_range", None)
+        )
+        axial_depth_range = _read_optional_float_pair_env(
+            "SRSA_AXIAL_DEPTH_RANGE", getattr(cfg, "axial_target_depth_range", None)
+        )
+        cfg.axial_target_depth_range = _read_optional_float_pair_env(
+            "SRSA_AXIAL_TARGET_DEPTH_RANGE", axial_depth_range
+        )
+        cfg.axial_init_error_xy_range = _read_optional_float_pair_env(
+            "SRSA_AXIAL_INIT_ERROR_XY_RANGE", getattr(cfg, "axial_init_error_xy_range", None)
+        )
+        cfg.axial_init_error_z_range = _read_optional_float_pair_env(
+            "SRSA_AXIAL_INIT_ERROR_Z_RANGE", getattr(cfg, "axial_init_error_z_range", None)
+        )
+        cfg.axial_init_error_yaw_range = _read_optional_float_pair_env(
+            "SRSA_AXIAL_INIT_ERROR_YAW_RANGE", getattr(cfg, "axial_init_error_yaw_range", None)
+        )
+        cfg.axial_visual_noise_xy_range = _read_optional_float_pair_env(
+            "SRSA_AXIAL_VISUAL_NOISE_XY_RANGE", getattr(cfg, "axial_visual_noise_xy_range", None)
+        )
+        cfg.axial_visual_noise_z_range = _read_optional_float_pair_env(
+            "SRSA_AXIAL_VISUAL_NOISE_Z_RANGE", getattr(cfg, "axial_visual_noise_z_range", None)
+        )
+        cfg.axial_yaw_requirement = _read_bool_env(
+            "SRSA_AXIAL_YAW_REQUIREMENT", bool(getattr(cfg, "axial_yaw_requirement", False))
+        )
+        cfg.axial_reference_radius = _read_float_env(
+            "SRSA_AXIAL_REFERENCE_RADIUS",
+            float(getattr(cfg, "axial_reference_radius", 0.5 * 0.007986)),
+        )
+        cfg.axial_reference_depth = _read_float_env(
+            "SRSA_AXIAL_REFERENCE_DEPTH",
+            float(getattr(cfg, "axial_reference_depth", 0.015)),
+        )
+        cfg.enable_axial_task_param_sampler = enable_axial_task_param_sampler
+        if cfg.newt_obs:
+            cfg.action_space = cfg.newt_action_dim
+
+        use_task_param = bool(use_task_family or runtime_task_param_overrides or enable_axial_task_param_sampler)
 
         cfg.use_task_family = use_task_family
         cfg.use_task_param = use_task_param
@@ -221,11 +300,24 @@ class AssemblyRuntimeEnvMixin:
 
     def _init_tensors(self):
         super()._init_tensors()
-        self._init_task_param_runtime()
-        self._init_flange_force_sensor_runtime()
         self._vision_noise_episode_local = torch.zeros((self.num_envs, 3), device=self.device)
         self._vision_noise_world = torch.zeros((self.num_envs, 3), device=self.device)
         self._vision_noise_cache_step = None
+        self._newt_state = torch.zeros(
+            (self.num_envs, int(getattr(self.cfg, "newt_state_dim", NEWT_STATE_DIM))), device=self.device
+        )
+        self._newt_state_mask = torch.zeros_like(self._newt_state, dtype=torch.bool)
+        self._newt_action_mask = torch.zeros(
+            (self.num_envs, int(getattr(self.cfg, "newt_action_dim", NEWT_ACTION_DIM))),
+            dtype=torch.bool,
+            device=self.device,
+        )
+        self._newt_action_mask[:, :SRSA_ACTION_DIM] = True
+        self.newt_state = self._newt_state
+        self.state_mask = self._newt_state_mask
+        self.action_mask = self._newt_action_mask
+        self._init_task_param_runtime()
+        self._init_flange_force_sensor_runtime()
 
     def _setup_scene(self):
         super()._setup_scene()
@@ -241,6 +333,58 @@ class AssemblyRuntimeEnvMixin:
         if held_sensor_cfg is not None:
             self._held_asset_contact_sensor = ContactSensor(held_sensor_cfg)
             self.scene.sensors["held_asset_contact_sensor"] = self._held_asset_contact_sensor
+
+    def _init_post_super_runtime(self) -> None:
+        if hasattr(self, "gripper_open_width"):
+            self._srsa_base_gripper_open_width = float(self.gripper_open_width)
+            self.current_gripper_open_width = (
+                torch.full(
+                    (self.num_envs,), self._srsa_base_gripper_open_width, dtype=torch.float32, device=self.device
+                )
+                * self.current_plug_scale_xy
+            )
+
+    def _configure_runtime_gym_spaces(self) -> None:
+        if bool(getattr(self.cfg, "newt_obs", False)):
+            state_dim = int(getattr(self.cfg, "newt_state_dim", NEWT_STATE_DIM))
+            action_dim = int(getattr(self.cfg, "newt_action_dim", NEWT_ACTION_DIM))
+            task_dim = len(AXIAL_TASK_VEC_FIELD_ORDER)
+            self.cfg.observation_space = {
+                "state": state_dim,
+                "state_mask": state_dim,
+                "task": task_dim,
+                "task_id": 1,
+                "action_mask": action_dim,
+            }
+            self.cfg.action_space = action_dim
+            self.cfg.state_space = None
+            self.single_observation_space = gym.spaces.Dict(
+                {
+                    "state": gym.spaces.Box(low=-np.inf, high=np.inf, shape=(state_dim,), dtype=np.float32),
+                    "state_mask": gym.spaces.Box(low=0.0, high=1.0, shape=(state_dim,), dtype=np.float32),
+                    "task": gym.spaces.Box(low=-np.inf, high=np.inf, shape=(task_dim,), dtype=np.float32),
+                    "task_id": gym.spaces.Box(low=0.0, high=np.inf, shape=(1,), dtype=np.float32),
+                    "action_mask": gym.spaces.Box(low=0.0, high=1.0, shape=(action_dim,), dtype=np.float32),
+                }
+            )
+            self.observation_space = gym.vector.utils.batch_space(self.single_observation_space, self.num_envs)
+            self.single_action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(action_dim,), dtype=np.float32)
+            self.action_space = gym.vector.utils.batch_space(self.single_action_space, self.num_envs)
+            self.state_space = None
+            self.actions = torch.zeros((self.num_envs, action_dim), dtype=torch.float32, device=self.device)
+            self.prev_actions = torch.zeros_like(self.actions)
+            return
+
+        policy_dim = int(getattr(self.cfg, "observation_space", 0))
+        if bool(getattr(self.cfg, "enable_flange_force_sensor", False)):
+            policy_dim += 3
+        if bool(getattr(self.cfg, "task_param_obs", False)):
+            policy_dim += len(TASK_PARAM_TENSOR_FIELD_ORDER)
+        self.cfg.observation_space = policy_dim
+        self.single_observation_space["policy"] = gym.spaces.Box(
+            low=-np.inf, high=np.inf, shape=(policy_dim,), dtype=np.float32
+        )
+        self.observation_space = gym.vector.utils.batch_space(self.single_observation_space["policy"], self.num_envs)
 
     def _init_flange_force_sensor_runtime(self) -> None:
         self.enable_flange_force_sensor = bool(getattr(self.cfg, "enable_flange_force_sensor", False))
@@ -345,9 +489,33 @@ class AssemblyRuntimeEnvMixin:
         self.use_task_family = bool(getattr(self.cfg, "use_task_family", False))
         self.use_task_param = bool(getattr(self.cfg, "use_task_param", False))
         self.task_param_obs = bool(getattr(self.cfg, "task_param_obs", False))
-        self.enable_task_param = bool(self.use_task_param or self.task_param_obs)
+        self.enable_axial_task_param_sampler = bool(getattr(self.cfg, "enable_axial_task_param_sampler", True))
+        self.enable_task_param = bool(self.use_task_param or self.task_param_obs or self.enable_axial_task_param_sampler)
         self.current_task_param_tensor = None
         self.current_task_params = {}
+        self.current_task_param_tensors = {}
+        self.current_task_vec = torch.zeros((self.num_envs, len(AXIAL_TASK_VEC_FIELD_ORDER)), device=self.device)
+        self.current_task_id = torch.zeros((self.num_envs, 1), dtype=torch.long, device=self.device)
+        self.current_initial_error_pos = torch.zeros((self.num_envs, 3), device=self.device)
+        self.current_initial_error_yaw = torch.zeros((self.num_envs,), device=self.device)
+        self.current_geometry_variant_applied = torch.zeros((self.num_envs, 1), dtype=torch.bool, device=self.device)
+        self.current_close_error_thresh_tensor = torch.full(
+            (self.num_envs,), float(getattr(self.cfg_task, "close_error_thresh", 0.015)), device=self.device
+        )
+        self.current_insertion_depth_tensor = (
+            self.disassembly_dists.clone()
+            if hasattr(self, "disassembly_dists")
+            else torch.zeros((self.num_envs,), dtype=torch.float32, device=self.device)
+        )
+        self.current_plug_scale_xy = torch.ones((self.num_envs,), dtype=torch.float32, device=self.device)
+        self.current_hole_scale_xy = torch.ones_like(self.current_plug_scale_xy)
+        self.current_gripper_open_width = torch.zeros((self.num_envs,), dtype=torch.float32, device=self.device)
+        self._srsa_base_disassembly_dists = (
+            self.disassembly_dists.clone()
+            if hasattr(self, "disassembly_dists")
+            else torch.zeros((self.num_envs,), dtype=torch.float32, device=self.device)
+        )
+        self.axial_task_param_sampler = None
 
         if not self.enable_task_param:
             return
@@ -367,6 +535,8 @@ class AssemblyRuntimeEnvMixin:
         baseline_insertion_depth = None
         if hasattr(self, "disassembly_dists"):
             baseline_insertion_depth = float(self.disassembly_dists[0].item())
+        else:
+            baseline_insertion_depth = 0.0
 
         effective_params = resolve_effective_task_params(
             base_task_cfg=self.cfg_task,
@@ -375,14 +545,39 @@ class AssemblyRuntimeEnvMixin:
             runtime_overrides=runtime_overrides,
             baseline_insertion_depth=baseline_insertion_depth,
         )
-        self.current_task_params = effective_params
-        self.current_task_param_tensor = make_task_param_tensor(effective_params, self.num_envs, self.device)
+        sampler_cfg = AxialTaskParamSamplerCfg(
+            enabled=self.enable_axial_task_param_sampler,
+            task_type_id=int(getattr(self.cfg, "axial_task_type_id", 0)),
+            scale_range=getattr(self.cfg, "axial_scale_range", None),
+            clearance_range=getattr(self.cfg, "axial_clearance_range", None),
+            clearance_ratio_range=getattr(self.cfg, "axial_clearance_ratio_range", None),
+            target_depth_range=getattr(self.cfg, "axial_target_depth_range", None),
+            init_error_xy_range=getattr(self.cfg, "axial_init_error_xy_range", None),
+            init_error_z_range=getattr(self.cfg, "axial_init_error_z_range", None),
+            init_error_yaw_range=getattr(self.cfg, "axial_init_error_yaw_range", None),
+            visual_noise_xy_range=getattr(self.cfg, "axial_visual_noise_xy_range", None),
+            visual_noise_z_range=getattr(self.cfg, "axial_visual_noise_z_range", None),
+            yaw_requirement=bool(getattr(self.cfg, "axial_yaw_requirement", False)),
+            reference_radius=float(getattr(self.cfg, "axial_reference_radius", 0.5 * 0.007986)),
+            reference_depth=float(getattr(self.cfg, "axial_reference_depth", 0.015)),
+        )
+        self.axial_task_param_sampler = AxialTaskParamSampler(
+            cfg=sampler_cfg,
+            base_task_cfg=self.cfg_task,
+            effective_params=effective_params,
+            baseline_insertion_depth=baseline_insertion_depth,
+            vision_noise_xy_std=self.vision_noise_xy_std,
+            vision_noise_z_std=self.vision_noise_z_std,
+        )
+
+        initial_params = self.axial_task_param_sampler.sample(self.num_envs, self.device)
+        self._set_current_task_param_tensors(torch.arange(self.num_envs, device=self.device), initial_params)
         self.current_close_error_thresh = float(effective_params["success_pos_tol"])
         self.current_insertion_depth = float(effective_params["insertion_depth"])
 
         if self.use_task_param:
             if hasattr(self, "disassembly_dists"):
-                self.disassembly_dists = torch.full_like(self.disassembly_dists, self.current_insertion_depth)
+                self.disassembly_dists[:] = self.current_insertion_depth_tensor
             self.cfg_task.close_error_thresh = self.current_close_error_thresh
 
             if hasattr(self, "curriculum_height_bound") and hasattr(self.cfg_task, "curriculum_freespace_range"):
@@ -390,20 +585,65 @@ class AssemblyRuntimeEnvMixin:
                     self.cfg_task.curriculum_freespace_range
                 )
 
-            if hasattr(self, "gripper_open_width"):
-                self.gripper_open_width = float(self.gripper_open_width) * float(effective_params["plug_scale_xy"])
-
-    def _update_task_param_extras(self) -> None:
-        if not self.current_task_params or not hasattr(self, "extras") or not isinstance(self.extras, dict):
+    def _set_current_task_param_tensors(self, env_ids: torch.Tensor, sampled_params: dict) -> None:
+        env_ids = self._env_ids_to_tensor(env_ids)
+        if env_ids.numel() == 0:
             return
 
-        self.extras["task_family_id"] = float(self.current_task_params["task_family_id"])
-        self.extras["plug_diameter"] = float(self.current_task_params["plug_diameter"])
-        self.extras["hole_diameter"] = float(self.current_task_params["hole_diameter"])
-        self.extras["clearance"] = float(self.current_task_params["clearance"])
-        self.extras["clearance_ratio"] = float(self.current_task_params["clearance_ratio"])
-        self.extras["insertion_depth"] = float(self.current_task_params["insertion_depth"])
-        self.extras["success_pos_tol"] = float(self.current_task_params["success_pos_tol"])
+        for key, value in sampled_params.items():
+            if not isinstance(value, torch.Tensor):
+                value = torch.as_tensor(value, device=self.device)
+            value = value.to(device=self.device)
+            if key not in self.current_task_param_tensors:
+                shape = (self.num_envs, *value.shape[1:])
+                dtype = value.dtype if value.dtype != torch.int64 else torch.float32
+                self.current_task_param_tensors[key] = torch.zeros(shape, dtype=dtype, device=self.device)
+            target = self.current_task_param_tensors[key]
+            target[env_ids] = value.to(dtype=target.dtype)
+
+        tensor_source = {key: value for key, value in self.current_task_param_tensors.items()}
+        self.current_task_param_tensor = make_task_param_tensor(tensor_source, self.num_envs, self.device)
+        self.current_task_vec[:] = self.current_task_param_tensors["task_vec"].to(dtype=torch.float32)
+        self.current_task_id[:, 0] = self.current_task_param_tensors["task_type_id_float"].round().to(torch.long)
+        self.current_close_error_thresh_tensor[:] = self.current_task_param_tensors["success_pos_tol"].to(torch.float32)
+        self.current_insertion_depth_tensor[:] = self.current_task_param_tensors["insertion_depth"].to(torch.float32)
+        self.current_plug_scale_xy[:] = self.current_task_param_tensors["plug_scale_xy"].to(torch.float32)
+        self.current_hole_scale_xy[:] = self.current_task_param_tensors["hole_scale_xy"].to(torch.float32)
+        self.current_initial_error_pos[:] = self.current_task_param_tensors["initial_error_pos"].to(torch.float32)
+        self.current_initial_error_yaw[:] = self.current_task_param_tensors["initial_error_yaw"].to(torch.float32)
+        self._vision_noise_episode_local[:] = self.current_task_param_tensors["visual_noise_local"].to(torch.float32)
+        self._reset_vision_noise_cache()
+
+        self.current_task_params = {}
+        first_env = int(env_ids[0].item())
+        for key, value in self.current_task_param_tensors.items():
+            if key in {"initial_error_pos", "visual_noise_local", "task_vec"}:
+                self.current_task_params[key] = value[first_env].detach().cpu().tolist()
+            else:
+                first_value = value[first_env]
+                self.current_task_params[key] = (
+                    float(first_value.item()) if first_value.numel() == 1 else first_value.detach().cpu().tolist()
+                )
+
+    def _update_task_param_extras(self) -> None:
+        if not hasattr(self, "extras") or not isinstance(self.extras, dict):
+            return
+        if not self.current_task_param_tensors:
+            return
+
+        task_params = {}
+        for key, value in self.current_task_param_tensors.items():
+            if key in {"initial_error_pos", "initial_error_yaw", "visual_noise_local", "task_vec"}:
+                continue
+            task_params[key] = value.detach().clone()
+            self.extras[key] = value.detach().clone()
+        self.extras["task_params"] = task_params
+        self.extras["task_vec"] = self.current_task_vec.detach().clone()
+        self.extras["task_id"] = self.current_task_id.detach().clone()
+        self.extras["initial_error_pos"] = self.current_initial_error_pos.detach().clone()
+        self.extras["initial_error_yaw"] = self.current_initial_error_yaw.detach().clone()
+        self.extras["visual_noise_local"] = self._vision_noise_episode_local.detach().clone()
+        self.extras["geometry_variant_applied"] = self.current_geometry_variant_applied.detach().clone()
 
     def _update_flange_force_extras(self) -> None:
         if not hasattr(self, "extras") or not isinstance(self.extras, dict):
@@ -416,6 +656,69 @@ class AssemblyRuntimeEnvMixin:
         self.extras["flange_body_contact_force_world"] = self.flange_body_contact_force_world.detach().clone()
         self.extras["held_sensor_contact_force_world"] = self.held_sensor_contact_force_world.detach().clone()
         self.extras["held_asset_contact_force_world"] = self.held_asset_contact_force_world.detach().clone()
+
+    def _held_fixed_delta_socket(self) -> torch.Tensor:
+        if not hasattr(self, "held_pos") or not hasattr(self, "fixed_pos") or not hasattr(self, "fixed_quat"):
+            return torch.zeros((self.num_envs, 3), dtype=torch.float32, device=self.device)
+        return quat_apply(quat_conjugate(self.fixed_quat), self.held_pos - self.fixed_pos)
+
+    def _compute_current_success(self) -> torch.Tensor:
+        if not all(hasattr(self, name) for name in ("held_pos", "fixed_pos", "keypoints_held", "keypoints_fixed")):
+            return torch.zeros((self.num_envs,), dtype=torch.bool, device=self.device)
+        from isaaclab_tasks.direct.automate import automate_algo_utils as automate_algo
+
+        return automate_algo.check_plug_inserted_in_socket(
+            self.held_pos,
+            self.fixed_pos,
+            self.current_insertion_depth_tensor,
+            self.keypoints_held,
+            self.keypoints_fixed,
+            self.current_close_error_thresh_tensor,
+            self.episode_length_buf,
+        ).to(dtype=torch.bool)
+
+    def _compute_depth_contact_jam(self) -> dict[str, torch.Tensor]:
+        rel_socket = self._held_fixed_delta_socket()
+        target_depth = self.current_insertion_depth_tensor.reshape(-1, 1)
+        current_depth = (target_depth[:, 0] - rel_socket[:, 2]).clamp_min(0.0)
+        depth_fraction = current_depth / target_depth[:, 0].clamp_min(1.0e-6)
+        lateral_error = torch.linalg.norm(rel_socket[:, :2], dim=-1)
+        contact = self.flange_force_flag.reshape(-1)
+        success = self._compute_current_success()
+        radial_clearance = self.current_task_param_tensors.get("radial_clearance")
+        if radial_clearance is None:
+            radial_clearance = torch.zeros((self.num_envs,), dtype=torch.float32, device=self.device)
+        jam_lateral_thresh = torch.maximum(
+            radial_clearance.to(self.device).reshape(-1), self.current_close_error_thresh_tensor
+        )
+        jam = contact & (~success) & (lateral_error > jam_lateral_thresh)
+        return {
+            "success": success,
+            "contact": contact,
+            "current_depth": current_depth,
+            "target_depth": target_depth[:, 0],
+            "depth_fraction": depth_fraction,
+            "lateral_error": lateral_error,
+            "jam": jam,
+        }
+
+    def _update_newt_task_extras(self) -> None:
+        if not hasattr(self, "extras") or not isinstance(self.extras, dict):
+            return
+        metrics = self._compute_depth_contact_jam()
+        for key, value in metrics.items():
+            self.extras[key] = value.detach().clone()
+        self.extras["force"] = {
+            "world": self.flange_force_world.detach().clone(),
+            "socket": self.flange_force_socket.detach().clone(),
+            "norm": self.flange_force_norm.detach().clone(),
+            "flag": self.flange_force_flag.detach().clone(),
+        }
+        self.extras["depth"] = {
+            "current": metrics["current_depth"].detach().clone(),
+            "target": metrics["target_depth"].detach().clone(),
+            "fraction": metrics["depth_fraction"].detach().clone(),
+        }
 
     def _augment_policy_observation_with_task_params(self, observations):
         if not self.task_param_obs or self.current_task_param_tensor is None:
@@ -445,6 +748,146 @@ class AssemblyRuntimeEnvMixin:
             return env_ids.to(device=self.device, dtype=torch.long).reshape(-1)
         return torch.as_tensor(env_ids, device=self.device, dtype=torch.long).reshape(-1)
 
+    def _reset_idx(self, env_ids):
+        env_ids = self._env_ids_to_tensor(env_ids)
+        self._prepare_axial_task_reset(env_ids)
+        super()._reset_idx(env_ids)
+
+    def _prepare_axial_task_reset(self, env_ids: torch.Tensor) -> None:
+        if (
+            env_ids.numel() == 0
+            or self.axial_task_param_sampler is None
+            or not self.enable_axial_task_param_sampler
+        ):
+            return
+        sampled_params = self.axial_task_param_sampler.sample(env_ids.numel(), self.device)
+        self._set_current_task_param_tensors(env_ids, sampled_params)
+        self.current_geometry_variant_applied[env_ids] = self._apply_geometry_variant(env_ids).reshape(-1, 1)
+        if hasattr(self, "disassembly_dists"):
+            self.disassembly_dists[env_ids] = self.current_insertion_depth_tensor[env_ids]
+        if hasattr(self, "curriculum_height_bound") and hasattr(self.cfg_task, "curriculum_freespace_range"):
+            upper = self.disassembly_dists[env_ids] + float(self.cfg_task.curriculum_freespace_range)
+            self.curriculum_height_bound[env_ids, 1] = upper
+            if hasattr(self, "curr_max_disp"):
+                if bool(getattr(self.cfg_task, "if_sbc", False)):
+                    self.curr_max_disp[env_ids] = torch.minimum(self.curr_max_disp[env_ids], upper)
+                else:
+                    self.curr_max_disp[env_ids] = upper
+        self.cfg_task.close_error_thresh = float(self.current_close_error_thresh_tensor[env_ids[0]].item())
+        if hasattr(self, "_srsa_base_gripper_open_width"):
+            self.current_gripper_open_width[env_ids] = (
+                float(self._srsa_base_gripper_open_width) * self.current_plug_scale_xy[env_ids]
+            )
+
+    def _apply_geometry_variant(self, env_ids: torch.Tensor) -> torch.Tensor:
+        applied = torch.zeros((env_ids.numel(),), dtype=torch.bool, device=self.device)
+        if env_ids.numel() == 0:
+            return applied
+        try:
+            from pxr import Gf, UsdGeom
+        except Exception:
+            return applied
+        stage = getattr(getattr(self, "scene", None), "stage", None)
+        env_prim_paths = getattr(getattr(self, "scene", None), "env_prim_paths", None)
+        if stage is None or env_prim_paths is None:
+            return applied
+
+        def set_scale(prim_path: str, scale_xy: float) -> bool:
+            prim = stage.GetPrimAtPath(prim_path)
+            if not prim or not prim.IsValid():
+                return False
+            xformable = UsdGeom.Xformable(prim)
+            scale_op = None
+            for op in xformable.GetOrderedXformOps():
+                if op.GetOpType() == UsdGeom.XformOp.TypeScale:
+                    scale_op = op
+                    break
+            if scale_op is None:
+                scale_op = xformable.AddScaleOp()
+            scale_op.Set(Gf.Vec3f(float(scale_xy), float(scale_xy), 1.0))
+            return True
+
+        for local_idx, env_id_tensor in enumerate(env_ids):
+            env_id = int(env_id_tensor.item())
+            env_path = env_prim_paths[env_id]
+            held_ok = set_scale(f"{env_path}/HeldAsset", float(self.current_plug_scale_xy[env_id].item()))
+            fixed_ok = set_scale(f"{env_path}/FixedAsset", float(self.current_hole_scale_xy[env_id].item()))
+            scale_changed = (
+                abs(float(self.current_plug_scale_xy[env_id].item()) - 1.0) > 1.0e-6
+                or abs(float(self.current_hole_scale_xy[env_id].item()) - 1.0) > 1.0e-6
+            )
+            applied[local_idx] = (held_ok or fixed_ok) and scale_changed
+        return applied
+
+    def _set_franka_to_default_pose(self, joints, env_ids):
+        if not hasattr(self, "current_gripper_open_width"):
+            return super()._set_franka_to_default_pose(joints, env_ids)
+        env_ids = self._env_ids_to_tensor(env_ids)
+        joint_pos = self._robot.data.default_joint_pos[env_ids]
+        gripper_width = self.current_gripper_open_width[env_ids].reshape(-1, 1)
+        joint_pos[:, 7:] = gripper_width
+        joint_pos[:, :7] = torch.tensor(joints, device=self.device)[None, :]
+        joint_vel = torch.zeros_like(joint_pos)
+        joint_effort = torch.zeros_like(joint_pos)
+        self.ctrl_target_joint_pos[env_ids, :] = joint_pos
+        self._robot.set_joint_position_target(self.ctrl_target_joint_pos[env_ids], env_ids=env_ids)
+        self._robot.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
+        self._robot.reset()
+        self._robot.set_joint_effort_target(joint_effort, env_ids=env_ids)
+        self.step_sim_no_action()
+
+    def randomize_held_initial_state(self, env_ids, pre_grasp):
+        if not self.enable_axial_task_param_sampler:
+            return super().randomize_held_initial_state(env_ids, pre_grasp)
+        env_ids = self._env_ids_to_tensor(env_ids)
+        curr_curriculum_disp_range = self.curriculum_height_bound[:, 1] - self.curr_max_disp
+        if pre_grasp:
+            self.curriculum_disp = self.curr_max_disp + curr_curriculum_disp_range * (
+                torch.rand((self.num_envs,), dtype=torch.float32, device=self.device)
+            )
+            self.held_pos_init_rand = torch.zeros((self.num_envs, 3), dtype=torch.float32, device=self.device)
+            self.held_pos_init_rand[env_ids] = self.current_initial_error_pos[env_ids]
+
+        held_state = self._held_asset.data.default_root_state.clone()[env_ids]
+        held_state[:, 0:3] = self.fixed_pos[env_ids].clone() + self.scene.env_origins[env_ids]
+        yaw_quat = torch_utils.quat_from_euler_xyz(
+            torch.zeros((env_ids.numel(),), dtype=torch.float32, device=self.device),
+            torch.zeros((env_ids.numel(),), dtype=torch.float32, device=self.device),
+            self.current_initial_error_yaw[env_ids],
+        )
+        held_state[:, 3:7] = torch_utils.quat_mul(yaw_quat, self.fixed_quat[env_ids].clone())
+        held_state[:, 7:] = 0.0
+        held_state[:, 2] += self.curriculum_disp[env_ids]
+
+        plug_in_freespace = self.curriculum_disp[env_ids] > self.disassembly_dists[env_ids]
+        if torch.any(plug_in_freespace):
+            held_state[plug_in_freespace, :2] += self.held_pos_init_rand[env_ids[plug_in_freespace], :2]
+
+        self._held_asset.write_root_state_to_sim(held_state, env_ids=env_ids)
+        self._held_asset.reset()
+        self.step_sim_no_action()
+
+    def _pre_physics_step(self, action):
+        if bool(getattr(self.cfg, "newt_obs", False)):
+            action = action.to(self.device)
+            if action.shape[-1] < int(getattr(self.cfg, "newt_action_dim", NEWT_ACTION_DIM)):
+                pad_dim = int(getattr(self.cfg, "newt_action_dim", NEWT_ACTION_DIM)) - action.shape[-1]
+                pad = torch.zeros(
+                    (*action.shape[:-1], pad_dim),
+                    dtype=action.dtype,
+                    device=action.device,
+                )
+                action = torch.cat([action, pad], dim=-1)
+            elif action.shape[-1] > int(getattr(self.cfg, "newt_action_dim", NEWT_ACTION_DIM)):
+                action = action[..., : int(getattr(self.cfg, "newt_action_dim", NEWT_ACTION_DIM))]
+        return super()._pre_physics_step(action)
+
+    def has_action_mask(self) -> bool:
+        return True
+
+    def get_action_mask(self) -> torch.Tensor:
+        return self._newt_action_mask.detach().clone()
+
     def _sample_episode_vision_noise(self, env_ids) -> None:
         env_ids = self._env_ids_to_tensor(env_ids)
         if env_ids.numel() == 0:
@@ -460,7 +903,8 @@ class AssemblyRuntimeEnvMixin:
 
     def randomize_initial_state(self, env_ids):
         super().randomize_initial_state(env_ids)
-        self._sample_episode_vision_noise(env_ids)
+        if not self.enable_axial_task_param_sampler:
+            self._sample_episode_vision_noise(env_ids)
 
     def _refresh_vision_noise_cache(self) -> None:
         cache_step = int(getattr(self, "_sim_step_counter", -1))
@@ -476,16 +920,141 @@ class AssemblyRuntimeEnvMixin:
         self._vision_noise_world = quat_apply(self.fixed_quat, noise_local)
         self._vision_noise_cache_step = cache_step
 
+    def _canonicalize_quat(self, quat: torch.Tensor) -> torch.Tensor:
+        quat = quat / torch.linalg.norm(quat, dim=-1, keepdim=True).clamp_min(1.0e-8)
+        return quat * torch.where(quat[:, :1] < 0.0, -1.0, 1.0)
+
+    def _build_newt_state(self) -> tuple[torch.Tensor, torch.Tensor]:
+        state_dim = int(getattr(self.cfg, "newt_state_dim", NEWT_STATE_DIM))
+        frame_pos = self.fixed_pos_obs_frame
+        frame_quat = self.fixed_quat
+        frame_quat_inv, frame_pos_inv = torch_utils.tf_inverse(frame_quat, frame_pos)
+
+        tcp_quat_socket, tcp_pos_socket = torch_utils.tf_combine(
+            frame_quat_inv,
+            frame_pos_inv,
+            self.fingertip_midpoint_quat,
+            self.fingertip_midpoint_pos,
+        )
+        goal_quat_socket, goal_pos_socket = torch_utils.tf_combine(
+            frame_quat_inv,
+            frame_pos_inv,
+            self.gripper_goal_quat,
+            self.gripper_goal_pos,
+        )
+        held_quat_socket, held_pos_socket = torch_utils.tf_combine(
+            frame_quat_inv,
+            frame_pos_inv,
+            self.held_quat,
+            self.held_pos,
+        )
+        fixed_quat_socket, fixed_pos_socket = torch_utils.tf_combine(
+            frame_quat_inv,
+            frame_pos_inv,
+            self.fixed_quat,
+            self.fixed_pos,
+        )
+        tcp_linvel_socket = torch_utils.quat_rotate_inverse(frame_quat, self.ee_linvel_fd)
+        tcp_angvel_socket = torch_utils.quat_rotate_inverse(frame_quat, self.ee_angvel_fd)
+        held_linvel_world = getattr(self._held_asset.data, "root_lin_vel_w", torch.zeros_like(self.held_pos))
+        held_angvel_world = getattr(self._held_asset.data, "root_ang_vel_w", torch.zeros_like(self.held_pos))
+        held_linvel_socket = torch_utils.quat_rotate_inverse(frame_quat, held_linvel_world)
+        held_angvel_socket = torch_utils.quat_rotate_inverse(frame_quat, held_angvel_world)
+        keypoint_delta = self.keypoints_held - self.keypoints_fixed
+        keypoint_count = keypoint_delta.shape[1]
+        keypoint_delta_socket = quat_apply(
+            quat_conjugate(frame_quat).repeat_interleave(keypoint_count, dim=0),
+            keypoint_delta.reshape(self.num_envs * keypoint_count, 3),
+        ).reshape(self.num_envs, -1)
+        metrics = self._compute_depth_contact_jam()
+        gripper_width = self.joint_pos[:, 7:9].sum(dim=-1, keepdim=True)
+        if hasattr(self, "actions"):
+            prev_action = self.actions[:, :SRSA_ACTION_DIM]
+        else:
+            prev_action = torch.zeros((self.num_envs, SRSA_ACTION_DIM), dtype=torch.float32, device=self.device)
+        parts = [
+            tcp_pos_socket,
+            self._canonicalize_quat(tcp_quat_socket),
+            tcp_linvel_socket,
+            tcp_angvel_socket,
+            gripper_width,
+            goal_pos_socket,
+            self._canonicalize_quat(goal_quat_socket),
+            goal_pos_socket - tcp_pos_socket,
+            held_pos_socket,
+            self._canonicalize_quat(held_quat_socket),
+            held_linvel_socket,
+            held_angvel_socket,
+            fixed_pos_socket,
+            self._canonicalize_quat(fixed_quat_socket),
+            held_pos_socket - fixed_pos_socket,
+            keypoint_delta_socket,
+            self.keypoint_dist.reshape(-1, 1),
+            self.flange_force_socket,
+            self.flange_force_norm,
+            metrics["contact"].to(dtype=torch.float32).reshape(-1, 1),
+            metrics["current_depth"].reshape(-1, 1),
+            metrics["target_depth"].reshape(-1, 1),
+            metrics["depth_fraction"].reshape(-1, 1),
+            metrics["lateral_error"].reshape(-1, 1),
+            metrics["jam"].to(dtype=torch.float32).reshape(-1, 1),
+            self.joint_pos[:, 0:7],
+            self.joint_vel[:, 0:7],
+            prev_action,
+        ]
+        compact_state = torch.cat(parts, dim=-1).to(dtype=torch.float32)
+        state = torch.zeros((self.num_envs, state_dim), dtype=torch.float32, device=self.device)
+        mask = torch.zeros((self.num_envs, state_dim), dtype=torch.bool, device=self.device)
+        valid_dim = min(state_dim, compact_state.shape[-1])
+        state[:, :valid_dim] = compact_state[:, :valid_dim]
+        mask[:, :valid_dim] = True
+        return state, mask
+
+    def _make_newt_observations(self) -> dict[str, torch.Tensor]:
+        if (
+            self.vision_noise_xy_std > 0.0
+            or self.vision_noise_xy_jitter_std > 0.0
+            or self.vision_noise_z_std > 0.0
+            or self.vision_noise_z_jitter_std > 0.0
+            or bool(torch.any(self._vision_noise_episode_local != 0.0).item())
+        ):
+            self._refresh_vision_noise_cache()
+            true_goal_pos = self.gripper_goal_pos
+            self.gripper_goal_pos = true_goal_pos + self._vision_noise_world
+            try:
+                state, state_mask = self._build_newt_state()
+            finally:
+                self.gripper_goal_pos = true_goal_pos
+        else:
+            state, state_mask = self._build_newt_state()
+        self._newt_state[:] = state
+        self._newt_state_mask[:] = state_mask
+        self._update_task_param_extras()
+        self._update_flange_force_extras()
+        self._update_newt_task_extras()
+        return {
+            "state": self._newt_state,
+            "state_mask": self._newt_state_mask,
+            "task": self.current_task_vec,
+            "task_id": self.current_task_id,
+            "action_mask": self._newt_action_mask,
+        }
+
     def _get_observations(self):
+        if bool(getattr(self.cfg, "newt_obs", False)):
+            return self._make_newt_observations()
+
         if (
             self.vision_noise_xy_std <= 0.0
             and self.vision_noise_xy_jitter_std <= 0.0
             and self.vision_noise_z_std <= 0.0
             and self.vision_noise_z_jitter_std <= 0.0
+            and not bool(torch.any(self._vision_noise_episode_local != 0.0).item())
         ):
             observations = super()._get_observations()
             self._update_task_param_extras()
             self._update_flange_force_extras()
+            self._update_newt_task_extras()
             observations = self._augment_policy_observation_with_flange_force(observations)
             return self._augment_policy_observation_with_task_params(observations)
 
@@ -498,5 +1067,6 @@ class AssemblyRuntimeEnvMixin:
             self.gripper_goal_pos = true_goal_pos
         self._update_task_param_extras()
         self._update_flange_force_extras()
+        self._update_newt_task_extras()
         observations = self._augment_policy_observation_with_flange_force(observations)
         return self._augment_policy_observation_with_task_params(observations)

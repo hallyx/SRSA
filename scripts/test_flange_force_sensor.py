@@ -60,6 +60,29 @@ parser.add_argument(
     help="Fail if the policy observation dimension differs from this value.",
 )
 parser.add_argument(
+    "--newt_obs",
+    action="store_true",
+    help="Enable and validate the Newt observation dict: state/state_mask/task/task_id/action_mask.",
+)
+parser.add_argument(
+    "--expected_newt_state_dim",
+    type=int,
+    default=128,
+    help="Expected Newt state and state_mask dimension.",
+)
+parser.add_argument(
+    "--expected_newt_task_dim",
+    type=int,
+    default=6,
+    help="Expected Newt task vector dimension.",
+)
+parser.add_argument(
+    "--expected_newt_action_dim",
+    type=int,
+    default=16,
+    help="Expected Newt padded action/action_mask dimension.",
+)
+parser.add_argument(
     "--body_name",
     type=str,
     default="panda_hand",
@@ -145,12 +168,35 @@ def _prepend_local_python_roots() -> None:
             sys.path.insert(0, path)
 
 
-def _as_policy_tensor(obs):
+def _read_bool_env(name: str, default: bool = False) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _expect_newt_obs() -> bool:
+    return bool(args_cli.newt_obs) or _read_bool_env("SRSA_NEWT_OBS", False)
+
+
+def _as_obs_payload(obs):
     if isinstance(obs, tuple) and len(obs) >= 1:
-        obs = obs[0]
+        return obs[0]
+    return obs
+
+
+def _as_policy_tensor(obs):
+    obs = _as_obs_payload(obs)
     if isinstance(obs, dict):
         return obs.get("policy")
     return obs
+
+
+def _as_newt_obs_dict(obs):
+    obs = _as_obs_payload(obs)
+    if isinstance(obs, dict) and "state" in obs:
+        return obs
+    return None
 
 
 def _get_action_dim(env) -> int:
@@ -335,6 +381,147 @@ def _print_step_summary(env, step: int, policy_obs) -> None:
     _print_error_summary(env, step)
 
 
+def _print_newt_obs_summary(obs) -> None:
+    obs_dict = _as_newt_obs_dict(obs)
+    if obs_dict is None:
+        return
+    state = obs_dict["state"]
+    state_mask = obs_dict["state_mask"]
+    task = obs_dict["task"]
+    task_id = obs_dict["task_id"]
+    action_mask = obs_dict["action_mask"]
+    valid_state_dim = state_mask.sum(dim=-1)
+    valid_action_dim = action_mask.sum(dim=-1)
+    print("[force-test] newt observation summary", flush=True)
+    print(f"  state_shape={tuple(state.shape)} valid_state_dim={valid_state_dim.detach().cpu().tolist()}", flush=True)
+    print(f"  task_shape={tuple(task.shape)} task_id_shape={tuple(task_id.shape)}", flush=True)
+    print(f"  action_mask_shape={tuple(action_mask.shape)} valid_action_dim={valid_action_dim.detach().cpu().tolist()}", flush=True)
+
+
+def _print_newt_extras_summary(env) -> None:
+    if not _expect_newt_obs():
+        return
+    extras = getattr(env.unwrapped, "extras", {}) or {}
+    task_params = extras.get("task_params", {}) or {}
+    print("[force-test] newt extras summary", flush=True)
+    for key in (
+        "plug_scale_xy",
+        "hole_scale_xy",
+        "diametral_clearance",
+        "radial_clearance",
+        "clearance_ratio",
+        "target_insertion_depth",
+        "insertion_depth",
+    ):
+        value = task_params.get(key)
+        if isinstance(value, torch.Tensor):
+            print(f"  {_scalar_stats(key, value)}", flush=True)
+    for key in ("initial_error_pos", "initial_error_yaw", "visual_noise_local"):
+        value = extras.get(key)
+        if isinstance(value, torch.Tensor):
+            print(f"  {_force_stats(key, value) if value.ndim == 2 and value.shape[-1] == 3 else _scalar_stats(key, value)}", flush=True)
+    for key in ("success", "contact", "jam", "geometry_variant_applied"):
+        value = extras.get(key)
+        if isinstance(value, torch.Tensor):
+            count = int(value.to(dtype=torch.bool).sum().item())
+            print(f"  {key}_count={count}/{value.numel()}", flush=True)
+
+
+def _validate_newt_obs(env, obs) -> None:
+    if not _expect_newt_obs():
+        return
+    obs_dict = _as_newt_obs_dict(obs)
+    if obs_dict is None:
+        raise RuntimeError(f"Expected Newt obs dict, got {type(_as_obs_payload(obs))}")
+
+    expected_keys = {"state", "state_mask", "task", "task_id", "action_mask"}
+    actual_keys = set(obs_dict.keys())
+    if actual_keys != expected_keys:
+        raise RuntimeError(f"Unexpected Newt obs keys: got {sorted(actual_keys)}, expected {sorted(expected_keys)}")
+
+    num_envs = env.unwrapped.num_envs
+    expected_shapes = {
+        "state": (num_envs, int(args_cli.expected_newt_state_dim)),
+        "state_mask": (num_envs, int(args_cli.expected_newt_state_dim)),
+        "task": (num_envs, int(args_cli.expected_newt_task_dim)),
+        "task_id": (num_envs, 1),
+        "action_mask": (num_envs, int(args_cli.expected_newt_action_dim)),
+    }
+    for name, expected_shape in expected_shapes.items():
+        tensor = obs_dict[name]
+        if not isinstance(tensor, torch.Tensor):
+            raise RuntimeError(f"Newt obs {name} is not a torch.Tensor: {type(tensor)}")
+        if tuple(tensor.shape) != expected_shape:
+            raise RuntimeError(f"Unexpected Newt obs {name} shape: got {tuple(tensor.shape)}, expected {expected_shape}")
+        if name not in {"state_mask", "action_mask"} and not torch.isfinite(tensor.float()).all():
+            raise RuntimeError(f"Newt obs {name} contains non-finite values")
+
+    if obs_dict["state_mask"].dtype != torch.bool:
+        raise RuntimeError(f"Newt state_mask must be bool, got {obs_dict['state_mask'].dtype}")
+    if obs_dict["action_mask"].dtype != torch.bool:
+        raise RuntimeError(f"Newt action_mask must be bool, got {obs_dict['action_mask'].dtype}")
+    if not torch.all(obs_dict["action_mask"][:, :6]):
+        raise RuntimeError("Newt action_mask must enable the first 6 SRSA action dimensions")
+    if obs_dict["action_mask"].shape[-1] > 6 and torch.any(obs_dict["action_mask"][:, 6:]):
+        raise RuntimeError("Newt action_mask must disable padded action dimensions after index 5")
+    if torch.any(obs_dict["state_mask"].sum(dim=-1) <= 0):
+        raise RuntimeError("Newt state_mask has an empty state row")
+
+
+def _validate_newt_extras(env) -> None:
+    if not _expect_newt_obs():
+        return
+    extras = getattr(env.unwrapped, "extras", None)
+    if not isinstance(extras, dict):
+        raise RuntimeError(f"Expected env extras dict for Newt info, got {type(extras)}")
+    required_keys = {
+        "task_params",
+        "task_vec",
+        "task_id",
+        "initial_error_pos",
+        "initial_error_yaw",
+        "visual_noise_local",
+        "success",
+        "force",
+        "contact",
+        "depth",
+        "jam",
+        "geometry_variant_applied",
+    }
+    missing = sorted(required_keys - set(extras.keys()))
+    if missing:
+        raise RuntimeError(f"Missing Newt extras/info keys: {missing}")
+
+    if not isinstance(extras["task_params"], dict):
+        raise RuntimeError("extras['task_params'] must be a dict")
+    if not isinstance(extras["force"], dict):
+        raise RuntimeError("extras['force'] must be a dict")
+    if not isinstance(extras["depth"], dict):
+        raise RuntimeError("extras['depth'] must be a dict")
+    for key in ("world", "socket", "norm", "flag"):
+        if key not in extras["force"]:
+            raise RuntimeError(f"Missing extras['force']['{key}']")
+    for key in ("current", "target", "fraction"):
+        if key not in extras["depth"]:
+            raise RuntimeError(f"Missing extras['depth']['{key}']")
+
+    num_envs = env.unwrapped.num_envs
+    for key in ("task_vec", "task_id", "initial_error_pos", "initial_error_yaw", "visual_noise_local"):
+        value = extras[key]
+        if not isinstance(value, torch.Tensor):
+            raise RuntimeError(f"extras['{key}'] must be a tensor, got {type(value)}")
+        if value.shape[0] != num_envs:
+            raise RuntimeError(f"extras['{key}'] first dim must be num_envs={num_envs}, got {tuple(value.shape)}")
+        if not torch.isfinite(value.float()).all():
+            raise RuntimeError(f"extras['{key}'] contains non-finite values")
+    for key in ("success", "contact", "jam", "geometry_variant_applied"):
+        value = extras[key]
+        if not isinstance(value, torch.Tensor):
+            raise RuntimeError(f"extras['{key}'] must be a tensor, got {type(value)}")
+        if value.reshape(-1).numel() != num_envs:
+            raise RuntimeError(f"extras['{key}'] must have num_envs={num_envs} entries, got {tuple(value.shape)}")
+
+
 def _validate_force_tensors(env) -> None:
     required = {
         "flange_force_world": env.unwrapped.flange_force_world,
@@ -371,6 +558,8 @@ def main() -> None:
     _set_optional_env("SRSA_INSERTION_DEPTH", args_cli.insertion_depth)
     _set_optional_env("SRSA_SUCCESS_POS_TOL", args_cli.success_pos_tol)
     os.environ["SRSA_TASK_PARAM_OBS"] = "1" if args_cli.task_param_obs else "0"
+    if args_cli.newt_obs:
+        os.environ["SRSA_NEWT_OBS"] = "1"
     os.environ["SRSA_ENABLE_FLANGE_FORCE_SENSOR"] = "1"
     os.environ["SRSA_FLANGE_FORCE_SENSOR_BODY_NAME"] = args_cli.body_name
     os.environ["SRSA_FLANGE_FORCE_SENSOR_SOURCE"] = args_cli.force_source
@@ -411,6 +600,10 @@ def main() -> None:
             raise RuntimeError("held_asset_contact_sensor is missing from scene.sensors.")
 
         action_dim = _get_action_dim(env)
+        if _expect_newt_obs() and action_dim != int(args_cli.expected_newt_action_dim):
+            raise RuntimeError(
+                f"Unexpected Newt action dim: got {action_dim}, expected {args_cli.expected_newt_action_dim}"
+            )
         print("[force-test] environment created", flush=True)
         print(
             f"  task={args_cli.task} num_envs={env.unwrapped.num_envs} "
@@ -429,8 +622,13 @@ def main() -> None:
         print("[force-test] resetting environment", flush=True)
         reset_result = env.reset()
         policy_obs = _as_policy_tensor(reset_result)
+        obs_payload = _as_obs_payload(reset_result)
         _validate_force_tensors(env)
+        _validate_newt_obs(env, obs_payload)
+        _validate_newt_extras(env)
         _print_step_summary(env, 0, policy_obs)
+        _print_newt_obs_summary(obs_payload)
+        _print_newt_extras_summary(env)
 
         max_norm_seen = float(env.unwrapped.flange_force_norm.max().item())
         max_abs_seen = float(env.unwrapped.flange_force_world.abs().max().item())
@@ -457,7 +655,10 @@ def main() -> None:
                 step_ms_sum += step_ms
                 max_step_ms = max(max_step_ms, step_ms)
                 policy_obs = _as_policy_tensor(obs)
+                obs_payload = _as_obs_payload(obs)
                 _validate_force_tensors(env)
+                _validate_newt_obs(env, obs_payload)
+                _validate_newt_extras(env)
                 curr_max_norm = float(env.unwrapped.flange_force_norm.max().item())
                 curr_mean_norm = float(env.unwrapped.flange_force_norm.mean().item())
                 max_norm_seen = max(max_norm_seen, curr_max_norm)
@@ -475,6 +676,8 @@ def main() -> None:
                         first_flag_step = step
                 if args_cli.print_every > 0 and step % int(args_cli.print_every) == 0:
                     _print_step_summary(env, step, policy_obs)
+                    _print_newt_obs_summary(obs_payload)
+                    _print_newt_extras_summary(env)
 
         if max_abs_seen > float(args_cli.max_abs_force_warn):
             print(

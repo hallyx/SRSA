@@ -177,9 +177,20 @@ class AxialTaskParamSamplerCfg:
     enabled: bool = True
     task_type_id: int = 0
     scale_range: list[float] | tuple[float, float] | None = None
+    fixed_plug_scale: bool = False
     clearance_range: list[float] | tuple[float, float] | None = None
     clearance_ratio_range: list[float] | tuple[float, float] | None = None
+    clearance_base: float | None = None
+    clearance_anchor_multipliers: list[float] | tuple[float, ...] | None = None
+    clearance_anchor_jitter_ratio: float = 0.0
+    clearance_anchor_weights: list[float] | tuple[float, ...] | None = None
     target_depth_range: list[float] | tuple[float, float] | None = None
+    depth_base: float | None = None
+    depth_anchor_multipliers: list[float] | tuple[float, ...] | None = None
+    depth_anchor_jitter_ratio: float = 0.0
+    depth_anchor_weights: list[float] | tuple[float, ...] | None = None
+    clearance_depth_template_multipliers: list[list[float]] | tuple[tuple[float, float], ...] | None = None
+    clearance_depth_template_weights: list[float] | tuple[float, ...] | None = None
     init_error_xy_range: list[float] | tuple[float, float] | None = None
     init_error_z_range: list[float] | tuple[float, float] | None = None
     init_error_yaw_range: list[float] | tuple[float, float] | None = None
@@ -266,15 +277,167 @@ class AxialTaskParamSampler:
         )
         return magnitude * signs
 
+    @staticmethod
+    def _float_tensor(values, device, *, name: str):
+        import torch
+
+        tensor = torch.as_tensor([float(value) for value in values], dtype=torch.float32, device=device).reshape(-1)
+        if tensor.numel() == 0:
+            raise ValueError(f"{name} must contain at least one value.")
+        return tensor
+
+    @classmethod
+    def _sample_anchor_multipliers(
+        cls,
+        *,
+        anchor_multipliers,
+        jitter_ratio: float,
+        num_samples: int,
+        device,
+        anchor_weights=None,
+        name: str,
+    ):
+        import torch
+
+        anchors = cls._float_tensor(anchor_multipliers, device, name=name)
+        if torch.any(anchors <= 0.0):
+            raise ValueError(f"{name} multipliers must all be positive.")
+
+        if anchor_weights is None:
+            anchor_ids = torch.randint(0, anchors.numel(), (int(num_samples),), device=device)
+        else:
+            weights = cls._float_tensor(anchor_weights, device, name=f"{name} weights")
+            if weights.numel() != anchors.numel():
+                raise ValueError(
+                    f"{name} weights must have the same length as {name} multipliers: "
+                    f"{weights.numel()} != {anchors.numel()}."
+                )
+            if torch.any(weights < 0.0) or float(weights.sum().item()) <= 0.0:
+                raise ValueError(f"{name} weights must be non-negative and sum to a positive value.")
+            anchor_ids = torch.multinomial(weights / weights.sum(), int(num_samples), replacement=True)
+
+        multipliers = anchors[anchor_ids]
+        jitter = max(0.0, float(jitter_ratio or 0.0))
+        if jitter > 0.0:
+            jitter_scale = cls._uniform((max(1.0e-8, 1.0 - jitter), 1.0 + jitter), (int(num_samples),), device)
+            multipliers = multipliers * jitter_scale
+        return multipliers, anchor_ids.to(dtype=torch.float32)
+
+    @classmethod
+    def _sample_clearance_depth_templates(
+        cls,
+        *,
+        template_multipliers,
+        clearance_jitter_ratio: float,
+        depth_jitter_ratio: float,
+        num_samples: int,
+        device,
+        template_weights=None,
+    ):
+        import torch
+
+        rows = []
+        for idx, pair in enumerate(template_multipliers):
+            if len(pair) != 2:
+                raise ValueError(
+                    "clearance_depth_template_multipliers entries must be pairs "
+                    f"(clearance_multiplier, depth_multiplier), got entry {idx}: {pair!r}."
+                )
+            rows.append([float(pair[0]), float(pair[1])])
+        templates = torch.as_tensor(rows, dtype=torch.float32, device=device)
+        if templates.numel() == 0:
+            raise ValueError("clearance_depth_template_multipliers must contain at least one pair.")
+        if torch.any(templates <= 0.0):
+            raise ValueError("clearance/depth template multipliers must all be positive.")
+
+        if template_weights is None:
+            template_ids = torch.randint(0, templates.shape[0], (int(num_samples),), device=device)
+        else:
+            weights = cls._float_tensor(template_weights, device, name="clearance_depth_template_weights")
+            if weights.numel() != templates.shape[0]:
+                raise ValueError(
+                    "clearance_depth_template_weights must have the same length as "
+                    f"clearance_depth_template_multipliers: {weights.numel()} != {templates.shape[0]}."
+                )
+            if torch.any(weights < 0.0) or float(weights.sum().item()) <= 0.0:
+                raise ValueError("clearance_depth_template_weights must be non-negative and sum to a positive value.")
+            template_ids = torch.multinomial(weights / weights.sum(), int(num_samples), replacement=True)
+
+        sampled = templates[template_ids]
+        clearance_multiplier = sampled[:, 0]
+        depth_multiplier = sampled[:, 1]
+
+        clearance_jitter = max(0.0, float(clearance_jitter_ratio or 0.0))
+        if clearance_jitter > 0.0:
+            jitter_scale = cls._uniform(
+                (max(1.0e-8, 1.0 - clearance_jitter), 1.0 + clearance_jitter),
+                (int(num_samples),),
+                device,
+            )
+            clearance_multiplier = clearance_multiplier * jitter_scale
+
+        depth_jitter = max(0.0, float(depth_jitter_ratio or 0.0))
+        if depth_jitter > 0.0:
+            jitter_scale = cls._uniform(
+                (max(1.0e-8, 1.0 - depth_jitter), 1.0 + depth_jitter),
+                (int(num_samples),),
+                device,
+            )
+            depth_multiplier = depth_multiplier * jitter_scale
+
+        return clearance_multiplier, depth_multiplier, template_ids.to(dtype=torch.float32)
+
     def sample(self, num_samples: int, device):
         import torch
 
         n = int(num_samples)
         eps = 1.0e-8
-        scale = self._uniform(_range_or_fixed(self.cfg.scale_range, self.default_scale), (n,), device)
+        if bool(self.cfg.fixed_plug_scale):
+            scale = torch.full((n,), self.default_scale, dtype=torch.float32, device=device)
+        else:
+            scale = self._uniform(_range_or_fixed(self.cfg.scale_range, self.default_scale), (n,), device)
         plug_diameter = self.base_plug_diameter * scale
 
-        if self.cfg.clearance_ratio_range is not None:
+        clearance_multiplier = torch.ones((n,), dtype=torch.float32, device=device)
+        clearance_anchor_id = torch.full((n,), -1.0, dtype=torch.float32, device=device)
+        depth_multiplier = torch.ones((n,), dtype=torch.float32, device=device)
+        depth_anchor_id = torch.full((n,), -1.0, dtype=torch.float32, device=device)
+        clearance_depth_template_id = torch.full((n,), -1.0, dtype=torch.float32, device=device)
+        if self.cfg.clearance_depth_template_multipliers is not None:
+            clearance_multiplier, depth_multiplier, clearance_depth_template_id = (
+                self._sample_clearance_depth_templates(
+                    template_multipliers=self.cfg.clearance_depth_template_multipliers,
+                    clearance_jitter_ratio=self.cfg.clearance_anchor_jitter_ratio,
+                    depth_jitter_ratio=self.cfg.depth_anchor_jitter_ratio,
+                    num_samples=n,
+                    device=device,
+                    template_weights=self.cfg.clearance_depth_template_weights,
+                )
+            )
+            clearance_base = (
+                self.default_clearance if self.cfg.clearance_base is None else float(self.cfg.clearance_base)
+            )
+            diametral_clearance = (
+                torch.full((n,), max(0.0, clearance_base), dtype=torch.float32, device=device) * clearance_multiplier
+            )
+            clearance_ratio = diametral_clearance / plug_diameter.clamp_min(eps)
+        elif self.cfg.clearance_anchor_multipliers is not None:
+            clearance_multiplier, clearance_anchor_id = self._sample_anchor_multipliers(
+                anchor_multipliers=self.cfg.clearance_anchor_multipliers,
+                jitter_ratio=self.cfg.clearance_anchor_jitter_ratio,
+                num_samples=n,
+                device=device,
+                anchor_weights=self.cfg.clearance_anchor_weights,
+                name="clearance_anchor_multipliers",
+            )
+            clearance_base = (
+                self.default_clearance if self.cfg.clearance_base is None else float(self.cfg.clearance_base)
+            )
+            diametral_clearance = (
+                torch.full((n,), max(0.0, clearance_base), dtype=torch.float32, device=device) * clearance_multiplier
+            )
+            clearance_ratio = diametral_clearance / plug_diameter.clamp_min(eps)
+        elif self.cfg.clearance_ratio_range is not None:
             clearance_ratio = self._uniform(_range_or_fixed(self.cfg.clearance_ratio_range, 0.0), (n,), device)
             diametral_clearance = plug_diameter * clearance_ratio
         else:
@@ -288,7 +451,27 @@ class AxialTaskParamSampler:
         hole_diameter = plug_diameter + diametral_clearance
         hole_scale_xy = hole_diameter / max(self.base_hole_diameter, eps)
 
-        target_depth = self._uniform(_range_or_fixed(self.cfg.target_depth_range, self.default_depth), (n,), device)
+        # Depth changes the target/effective mating length only; XY geometry and clearance stay above.
+        if self.cfg.clearance_depth_template_multipliers is not None:
+            depth_base = self.default_depth if self.cfg.depth_base is None else float(self.cfg.depth_base)
+            target_depth = (
+                torch.full((n,), max(0.0, depth_base), dtype=torch.float32, device=device) * depth_multiplier
+            )
+        elif self.cfg.depth_anchor_multipliers is not None:
+            depth_multiplier, depth_anchor_id = self._sample_anchor_multipliers(
+                anchor_multipliers=self.cfg.depth_anchor_multipliers,
+                jitter_ratio=self.cfg.depth_anchor_jitter_ratio,
+                num_samples=n,
+                device=device,
+                anchor_weights=self.cfg.depth_anchor_weights,
+                name="depth_anchor_multipliers",
+            )
+            depth_base = self.default_depth if self.cfg.depth_base is None else float(self.cfg.depth_base)
+            target_depth = (
+                torch.full((n,), max(0.0, depth_base), dtype=torch.float32, device=device) * depth_multiplier
+            )
+        else:
+            target_depth = self._uniform(_range_or_fixed(self.cfg.target_depth_range, self.default_depth), (n,), device)
         target_depth = target_depth.clamp_min(0.0)
         success_pos_tol = torch.full((n,), self.default_success_pos_tol, dtype=torch.float32, device=device)
 
@@ -340,9 +523,14 @@ class AxialTaskParamSampler:
             "diametral_clearance": diametral_clearance,
             "radial_clearance": radial_clearance,
             "clearance_ratio": clearance_ratio,
+            "clearance_multiplier": clearance_multiplier,
+            "clearance_anchor_id": clearance_anchor_id,
+            "clearance_depth_template_id": clearance_depth_template_id,
             "success_pos_tol": success_pos_tol,
             "insertion_depth": target_depth,
             "target_insertion_depth": target_depth,
+            "depth_multiplier": depth_multiplier,
+            "depth_anchor_id": depth_anchor_id,
             "plug_scale_xy": scale,
             "hole_scale_xy": hole_scale_xy,
             "scale_ratio": scale,

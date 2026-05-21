@@ -158,7 +158,9 @@ use_task_family=True
 use_task_param=True
 task_param_obs=True/False
 current_task_param_tensor_shape=(num_envs, 9)
-policy_obs_shape=(num_envs, 36)  # task_param_obs=True
+current_task_vec_shape=(num_envs, 6)
+policy_obs_shape=(num_envs, 33)  # task_param_obs=True, task_param_obs_mode=task_vec
+policy_obs_shape=(num_envs, 36)  # task_param_obs=True, task_param_obs_mode=legacy
 policy_obs_shape=(num_envs, 27)  # task_param_obs=False
 ```
 
@@ -238,7 +240,8 @@ first_flag_step=5
 
    - 旧策略若按 24 维训练，启用 force obs 后不能直接加载到同结构网络。
    - force obs 默认增加 3 维。
-   - task param obs 额外增加 9 维。
+   - task param obs 默认使用 Newt 同款 6 维 `task_vec`。
+   - 如设置 `SRSA_TASK_PARAM_OBS_MODE=legacy`，则使用旧 9 维参数。
 
 5. 若要真机 FR3/Panda 使用该力观测，需要额外实现真机力源适配：
 

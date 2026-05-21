@@ -54,6 +54,13 @@ parser.add_argument(
     help="Append task parameters to policy observations for observation-dimension checks.",
 )
 parser.add_argument(
+    "--task_param_obs_mode",
+    type=str,
+    choices=("task_vec", "legacy"),
+    default=None,
+    help="Task-parameter policy obs format: Newt-style 6D task_vec or legacy 9D tensor.",
+)
+parser.add_argument(
     "--expected_policy_obs_dim",
     type=int,
     default=None,
@@ -285,7 +292,8 @@ def _print_task_param_summary(env) -> None:
         "  "
         f"use_task_family={getattr(unwrapped, 'use_task_family', None)} "
         f"use_task_param={getattr(unwrapped, 'use_task_param', None)} "
-        f"task_param_obs={getattr(unwrapped, 'task_param_obs', None)}",
+        f"task_param_obs={getattr(unwrapped, 'task_param_obs', None)} "
+        f"task_param_obs_mode={getattr(unwrapped, 'task_param_obs_mode', None)}",
         flush=True,
     )
     current_params = getattr(unwrapped, "current_task_params", {}) or {}
@@ -315,6 +323,8 @@ def _print_task_param_summary(env) -> None:
         print(f"  {_scalar_stats('disassembly_dists', unwrapped.disassembly_dists)}", flush=True)
     if hasattr(unwrapped, "current_task_param_tensor") and unwrapped.current_task_param_tensor is not None:
         print(f"  current_task_param_tensor_shape={tuple(unwrapped.current_task_param_tensor.shape)}", flush=True)
+    if hasattr(unwrapped, "current_task_vec") and unwrapped.current_task_vec is not None:
+        print(f"  current_task_vec_shape={tuple(unwrapped.current_task_vec.shape)}", flush=True)
 
 
 def _compute_error_metrics(env) -> dict[str, torch.Tensor]:
@@ -558,6 +568,8 @@ def main() -> None:
     _set_optional_env("SRSA_INSERTION_DEPTH", args_cli.insertion_depth)
     _set_optional_env("SRSA_SUCCESS_POS_TOL", args_cli.success_pos_tol)
     os.environ["SRSA_TASK_PARAM_OBS"] = "1" if args_cli.task_param_obs else "0"
+    if args_cli.task_param_obs_mode is not None:
+        os.environ["SRSA_TASK_PARAM_OBS_MODE"] = args_cli.task_param_obs_mode
     if args_cli.newt_obs:
         os.environ["SRSA_NEWT_OBS"] = "1"
     os.environ["SRSA_ENABLE_FLANGE_FORCE_SENSOR"] = "1"

@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import os
+import re
 
 import gymnasium as gym
 import numpy as np
@@ -72,6 +73,50 @@ def _read_optional_float_pair_env(name: str, default=None):
     if len(parts) != 2:
         raise ValueError(f"{name} must contain exactly two floats, got {value!r}.")
     return [float(parts[0]), float(parts[1])]
+
+
+def _read_optional_float_list_env(name: str, default=None):
+    value = os.environ.get(name)
+    if value is None or value.strip() == "":
+        return default
+    normalized = value.replace(":", ",").replace(";", ",")
+    parts = [item.strip() for item in normalized.split(",") if item.strip()]
+    if not parts:
+        raise ValueError(f"{name} must contain at least one float, got {value!r}.")
+    return [float(part) for part in parts]
+
+
+def _read_optional_float_pair_list_env(name: str, default=None):
+    value = os.environ.get(name)
+    if value is None or value.strip() == "":
+        return default
+    normalized = value.strip()
+    for char in "()[]{}":
+        normalized = normalized.replace(char, "")
+    parts = [item.strip() for item in re.split(r"[,;:/xX\s]+", normalized) if item.strip()]
+    if not parts or len(parts) % 2 != 0:
+        raise ValueError(
+            f"{name} must contain float pairs, for example '0.5:0.5;1.0:1.0'. Got {value!r}."
+        )
+    return [[float(parts[idx]), float(parts[idx + 1])] for idx in range(0, len(parts), 2)]
+
+
+def _normalize_task_param_obs_mode(mode: str | None) -> str:
+    normalized = str(mode or "task_vec").strip().lower().replace("-", "_")
+    if normalized in {"task_vec", "newt", "newt_task", "newt_task_vec", "axial", "axial_task_vec"}:
+        return "task_vec"
+    if normalized in {"legacy", "legacy_9d", "task_param", "task_param_tensor"}:
+        return "legacy"
+    raise ValueError(
+        "SRSA_TASK_PARAM_OBS_MODE must be one of: task_vec, newt, axial, legacy, legacy_9d. "
+        f"Got {mode!r}."
+    )
+
+
+def _task_param_obs_dim(mode: str | None) -> int:
+    if _normalize_task_param_obs_mode(mode) == "task_vec":
+        return len(AXIAL_TASK_VEC_FIELD_ORDER)
+    return len(TASK_PARAM_TENSOR_FIELD_ORDER)
 
 
 class AssemblyRuntimeEnvMixin:
@@ -152,6 +197,9 @@ class AssemblyRuntimeEnvMixin:
             "SRSA_TASK_PARAM_OBS",
             bool(getattr(cfg, "task_param_obs", False)),
         )
+        task_param_obs_mode = _normalize_task_param_obs_mode(
+            os.environ.get("SRSA_TASK_PARAM_OBS_MODE", getattr(cfg, "task_param_obs_mode", "task_vec"))
+        )
         newt_obs = _read_bool_env("SRSA_NEWT_OBS", bool(getattr(cfg, "newt_obs", False)))
         enable_axial_task_param_sampler = _read_bool_env(
             "SRSA_ENABLE_AXIAL_TASK_PARAM_SAMPLER",
@@ -167,17 +215,67 @@ class AssemblyRuntimeEnvMixin:
         cfg.axial_scale_range = _read_optional_float_pair_env(
             "SRSA_AXIAL_SCALE_RANGE", getattr(cfg, "axial_scale_range", None)
         )
+        cfg.axial_fixed_plug_scale = _read_bool_env(
+            "SRSA_AXIAL_FIXED_PLUG_SCALE", bool(getattr(cfg, "axial_fixed_plug_scale", False))
+        )
         cfg.axial_clearance_range = _read_optional_float_pair_env(
             "SRSA_AXIAL_CLEARANCE_RANGE", getattr(cfg, "axial_clearance_range", None)
         )
         cfg.axial_clearance_ratio_range = _read_optional_float_pair_env(
             "SRSA_AXIAL_CLEARANCE_RATIO_RANGE", getattr(cfg, "axial_clearance_ratio_range", None)
         )
+        axial_template_pairs = _read_optional_float_pair_list_env(
+            "SRSA_AXIAL_CLEARANCE_DEPTH_TEMPLATE_MULTIPLIERS",
+            getattr(cfg, "axial_clearance_depth_template_multipliers", None),
+        )
+        cfg.axial_clearance_depth_template_multipliers = _read_optional_float_pair_list_env(
+            "SRSA_AXIAL_CLEARANCE_DEPTH_TEMPLATES", axial_template_pairs
+        )
+        cfg.axial_clearance_depth_template_weights = _read_optional_float_list_env(
+            "SRSA_AXIAL_CLEARANCE_DEPTH_TEMPLATE_WEIGHTS",
+            getattr(cfg, "axial_clearance_depth_template_weights", None),
+        )
+        axial_clearance_base = _read_optional_float_env("SRSA_AXIAL_CLEARANCE_BASE")
+        cfg.axial_clearance_base = (
+            axial_clearance_base if axial_clearance_base is not None else getattr(cfg, "axial_clearance_base", None)
+        )
+        axial_clearance_anchors = _read_optional_float_list_env(
+            "SRSA_AXIAL_CLEARANCE_ANCHOR_MULTIPLIERS",
+            getattr(cfg, "axial_clearance_anchor_multipliers", None),
+        )
+        cfg.axial_clearance_anchor_multipliers = _read_optional_float_list_env(
+            "SRSA_AXIAL_CLEARANCE_ANCHORS", axial_clearance_anchors
+        )
+        cfg.axial_clearance_anchor_jitter_ratio = _read_float_env(
+            "SRSA_AXIAL_CLEARANCE_JITTER_RATIO",
+            float(getattr(cfg, "axial_clearance_anchor_jitter_ratio", 0.0)),
+        )
+        cfg.axial_clearance_anchor_weights = _read_optional_float_list_env(
+            "SRSA_AXIAL_CLEARANCE_ANCHOR_WEIGHTS", getattr(cfg, "axial_clearance_anchor_weights", None)
+        )
         axial_depth_range = _read_optional_float_pair_env(
             "SRSA_AXIAL_DEPTH_RANGE", getattr(cfg, "axial_target_depth_range", None)
         )
         cfg.axial_target_depth_range = _read_optional_float_pair_env(
             "SRSA_AXIAL_TARGET_DEPTH_RANGE", axial_depth_range
+        )
+        axial_depth_base = _read_optional_float_env("SRSA_AXIAL_DEPTH_BASE")
+        cfg.axial_depth_base = (
+            axial_depth_base if axial_depth_base is not None else getattr(cfg, "axial_depth_base", None)
+        )
+        axial_depth_anchors = _read_optional_float_list_env(
+            "SRSA_AXIAL_DEPTH_ANCHOR_MULTIPLIERS",
+            getattr(cfg, "axial_depth_anchor_multipliers", None),
+        )
+        cfg.axial_depth_anchor_multipliers = _read_optional_float_list_env(
+            "SRSA_AXIAL_DEPTH_ANCHORS", axial_depth_anchors
+        )
+        cfg.axial_depth_anchor_jitter_ratio = _read_float_env(
+            "SRSA_AXIAL_DEPTH_JITTER_RATIO",
+            float(getattr(cfg, "axial_depth_anchor_jitter_ratio", 0.0)),
+        )
+        cfg.axial_depth_anchor_weights = _read_optional_float_list_env(
+            "SRSA_AXIAL_DEPTH_ANCHOR_WEIGHTS", getattr(cfg, "axial_depth_anchor_weights", None)
         )
         cfg.axial_init_error_xy_range = _read_optional_float_pair_env(
             "SRSA_AXIAL_INIT_ERROR_XY_RANGE", getattr(cfg, "axial_init_error_xy_range", None)
@@ -214,6 +312,8 @@ class AssemblyRuntimeEnvMixin:
         cfg.use_task_family = use_task_family
         cfg.use_task_param = use_task_param
         cfg.task_param_obs = task_param_obs
+        cfg.task_param_obs_mode = task_param_obs_mode
+        cfg.task_param_obs_dim = _task_param_obs_dim(task_param_obs_mode)
         cfg.task_family_config = task_family_config
         cfg.active_task_family_name = resolved_family_name if use_task_family else None
         cfg.active_task_family_id = (
@@ -222,7 +322,7 @@ class AssemblyRuntimeEnvMixin:
         cfg.runtime_task_param_overrides = runtime_task_param_overrides
 
         if cfg.task_param_obs and not getattr(cfg, "_srsa_task_param_obs_augmented", False):
-            cfg.observation_space = int(getattr(cfg, "observation_space", 0)) + len(TASK_PARAM_TENSOR_FIELD_ORDER)
+            cfg.observation_space = int(getattr(cfg, "observation_space", 0)) + int(cfg.task_param_obs_dim)
             cfg._srsa_task_param_obs_augmented = True
 
         if use_task_param or cfg.task_param_obs:
@@ -379,7 +479,13 @@ class AssemblyRuntimeEnvMixin:
         if bool(getattr(self.cfg, "enable_flange_force_sensor", False)):
             policy_dim += 3
         if bool(getattr(self.cfg, "task_param_obs", False)):
-            policy_dim += len(TASK_PARAM_TENSOR_FIELD_ORDER)
+            policy_dim += int(
+                getattr(
+                    self.cfg,
+                    "task_param_obs_dim",
+                    _task_param_obs_dim(getattr(self.cfg, "task_param_obs_mode", "task_vec")),
+                )
+            )
         self.cfg.observation_space = policy_dim
         self.single_observation_space["policy"] = gym.spaces.Box(
             low=-np.inf, high=np.inf, shape=(policy_dim,), dtype=np.float32
@@ -489,6 +595,7 @@ class AssemblyRuntimeEnvMixin:
         self.use_task_family = bool(getattr(self.cfg, "use_task_family", False))
         self.use_task_param = bool(getattr(self.cfg, "use_task_param", False))
         self.task_param_obs = bool(getattr(self.cfg, "task_param_obs", False))
+        self.task_param_obs_mode = _normalize_task_param_obs_mode(getattr(self.cfg, "task_param_obs_mode", "task_vec"))
         self.enable_axial_task_param_sampler = bool(getattr(self.cfg, "enable_axial_task_param_sampler", True))
         self.enable_task_param = bool(self.use_task_param or self.task_param_obs or self.enable_axial_task_param_sampler)
         self.current_task_param_tensor = None
@@ -549,9 +656,22 @@ class AssemblyRuntimeEnvMixin:
             enabled=self.enable_axial_task_param_sampler,
             task_type_id=int(getattr(self.cfg, "axial_task_type_id", 0)),
             scale_range=getattr(self.cfg, "axial_scale_range", None),
+            fixed_plug_scale=bool(getattr(self.cfg, "axial_fixed_plug_scale", False)),
             clearance_range=getattr(self.cfg, "axial_clearance_range", None),
             clearance_ratio_range=getattr(self.cfg, "axial_clearance_ratio_range", None),
+            clearance_base=getattr(self.cfg, "axial_clearance_base", None),
+            clearance_anchor_multipliers=getattr(self.cfg, "axial_clearance_anchor_multipliers", None),
+            clearance_anchor_jitter_ratio=float(getattr(self.cfg, "axial_clearance_anchor_jitter_ratio", 0.0)),
+            clearance_anchor_weights=getattr(self.cfg, "axial_clearance_anchor_weights", None),
             target_depth_range=getattr(self.cfg, "axial_target_depth_range", None),
+            depth_base=getattr(self.cfg, "axial_depth_base", None),
+            depth_anchor_multipliers=getattr(self.cfg, "axial_depth_anchor_multipliers", None),
+            depth_anchor_jitter_ratio=float(getattr(self.cfg, "axial_depth_anchor_jitter_ratio", 0.0)),
+            depth_anchor_weights=getattr(self.cfg, "axial_depth_anchor_weights", None),
+            clearance_depth_template_multipliers=getattr(
+                self.cfg, "axial_clearance_depth_template_multipliers", None
+            ),
+            clearance_depth_template_weights=getattr(self.cfg, "axial_clearance_depth_template_weights", None),
             init_error_xy_range=getattr(self.cfg, "axial_init_error_xy_range", None),
             init_error_z_range=getattr(self.cfg, "axial_init_error_z_range", None),
             init_error_yaw_range=getattr(self.cfg, "axial_init_error_yaw_range", None),
@@ -721,12 +841,18 @@ class AssemblyRuntimeEnvMixin:
         }
 
     def _augment_policy_observation_with_task_params(self, observations):
-        if not self.task_param_obs or self.current_task_param_tensor is None:
+        if not self.task_param_obs:
             return observations
 
         if isinstance(observations, dict) and isinstance(observations.get("policy"), torch.Tensor):
+            if self.task_param_obs_mode == "task_vec":
+                task_obs = self.current_task_vec
+            else:
+                task_obs = self.current_task_param_tensor
+            if task_obs is None:
+                return observations
             observations = dict(observations)
-            observations["policy"] = torch.cat([observations["policy"], self.current_task_param_tensor], dim=-1)
+            observations["policy"] = torch.cat([observations["policy"], task_obs.to(dtype=torch.float32)], dim=-1)
             return observations
         return observations
 

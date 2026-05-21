@@ -222,6 +222,13 @@ def main():
         help="Append task parameters to policy observations. This changes the observation dimension.",
     )
     parser.add_argument(
+        "--task_param_obs_mode",
+        type=str,
+        choices=("task_vec", "legacy"),
+        default=None,
+        help="Task-parameter policy obs format: Newt-style 6D task_vec or legacy 9D tensor.",
+    )
+    parser.add_argument(
         "--disable_task_param_obs",
         action="store_true",
         help="Compatibility flag; task-param observations are disabled by default.",
@@ -243,11 +250,13 @@ def main():
     env["SRSA_ASSEMBLY_ID"] = args.assembly_id
     env["SRSA_IF_SBC"] = "0" if args.no_sbc else "1"
     env["SRSA_IF_LOGGING_EVAL"] = "1" if args.log_eval else "0"
-    env["SRSA_EVAL_FILENAME"] = f"evaluation_{args.assembly_id}.h5"
+    env["SRSA_EVAL_FILENAME"] = os.environ.get("SRSA_EVAL_FILENAME", f"evaluation_{args.assembly_id}.h5")
     env["SRSA_NUM_EVAL_TRIALS"] = str(args.num_eval_trials)
     env["VISION_NOISE_XY_STD"] = str(float(args.vision_noise))
     env["VISION_NOISE_XY_JITTER_STD"] = str(float(args.vision_jitter))
     env["SRSA_TASK_PARAM_OBS"] = "1" if args.task_param_obs and not args.disable_task_param_obs else "0"
+    if args.task_param_obs_mode is not None:
+        env["SRSA_TASK_PARAM_OBS_MODE"] = args.task_param_obs_mode
 
     env_var_map = {
         "task_family_name": "SRSA_TASK_FAMILY_NAME",

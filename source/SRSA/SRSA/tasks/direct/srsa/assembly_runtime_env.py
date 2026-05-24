@@ -50,9 +50,11 @@ def _read_int_env(name: str, default: int) -> int:
     return int(value)
 
 
-def _read_optional_float_env(name: str) -> float | None:
+def _read_optional_float_env(name: str, default: float | None = None) -> float | None:
     value = os.environ.get(name)
     if value is None or value.strip() == "":
+        return default
+    if value.strip().lower() in {"none", "null"}:
         return None
     return float(value)
 
@@ -117,6 +119,42 @@ def _task_param_obs_dim(mode: str | None) -> int:
     if _normalize_task_param_obs_mode(mode) == "task_vec":
         return len(AXIAL_TASK_VEC_FIELD_ORDER)
     return len(TASK_PARAM_TENSOR_FIELD_ORDER)
+
+
+def _normalize_srsa_success_metric(metric: str | None) -> str:
+    normalized = str(metric or "terminal_process").strip().lower().replace("-", "_")
+    aliases = {
+        "automate": "official",
+        "auto_mate": "official",
+        "official_success": "official",
+        "current": "current_official",
+        "current_success": "current_official",
+        "current_official_success": "current_official",
+        "process_success": "process",
+        "episode_process_success": "episode_process",
+        "terminal": "terminal_process",
+        "terminal_success": "terminal_process",
+        "terminal_process_success": "terminal_process",
+        "strict": "terminal_process",
+        "strict_success": "terminal_process",
+        "dual_success": "dual",
+    }
+    normalized = aliases.get(normalized, normalized)
+    if normalized not in {"official", "current_official", "process", "episode_process", "terminal_process", "dual"}:
+        raise ValueError(
+            "SRSA_SUCCESS_METRIC/SRSA_EVAL_SUCCESS_METRIC must be one of: official, current_official, "
+            "process, episode_process, terminal_process, dual."
+        )
+    return normalized
+
+
+def _clamped_tolerance(base: torch.Tensor, scale: float, min_value: float | None, max_value: float | None):
+    tol = base * float(scale)
+    if min_value is not None:
+        tol = torch.maximum(tol, torch.full_like(tol, float(min_value)))
+    if max_value is not None:
+        tol = torch.minimum(tol, torch.full_like(tol, float(max_value)))
+    return tol
 
 
 class AssemblyRuntimeEnvMixin:
@@ -303,6 +341,59 @@ class AssemblyRuntimeEnvMixin:
             "SRSA_AXIAL_REFERENCE_DEPTH",
             float(getattr(cfg, "axial_reference_depth", 0.015)),
         )
+        success_metric = os.environ.get(
+            "SRSA_SUCCESS_METRIC",
+            os.environ.get("SRSA_EVAL_SUCCESS_METRIC", getattr(cfg, "srsa_eval_success_metric", "terminal_process")),
+        )
+        cfg.srsa_eval_success_metric = _normalize_srsa_success_metric(success_metric)
+        cfg.srsa_process_success_depth_ratio = _read_float_env(
+            "SRSA_PROCESS_SUCCESS_DEPTH_RATIO",
+            float(getattr(cfg, "srsa_process_success_depth_ratio", 0.85)),
+        )
+        cfg.srsa_process_success_lateral_tol_scale = _read_float_env(
+            "SRSA_PROCESS_SUCCESS_LATERAL_TOL_SCALE",
+            float(getattr(cfg, "srsa_process_success_lateral_tol_scale", 2.0)),
+        )
+        cfg.srsa_process_success_lateral_tol_min = _read_optional_float_env(
+            "SRSA_PROCESS_SUCCESS_LATERAL_TOL_MIN",
+            getattr(cfg, "srsa_process_success_lateral_tol_min", 0.001),
+        )
+        cfg.srsa_process_success_lateral_tol_max = _read_optional_float_env(
+            "SRSA_PROCESS_SUCCESS_LATERAL_TOL_MAX",
+            getattr(cfg, "srsa_process_success_lateral_tol_max", 0.003),
+        )
+        cfg.srsa_process_success_orientation_tol_rad = _read_float_env(
+            "SRSA_PROCESS_SUCCESS_ORIENTATION_TOL_RAD",
+            float(getattr(cfg, "srsa_process_success_orientation_tol_rad", 0.0872665)),
+        )
+        cfg.srsa_process_success_yaw_tol_rad = _read_float_env(
+            "SRSA_PROCESS_SUCCESS_YAW_TOL_RAD",
+            float(getattr(cfg, "srsa_process_success_yaw_tol_rad", 0.0872665)),
+        )
+        cfg.srsa_process_success_keypoint_tol_scale = _read_float_env(
+            "SRSA_PROCESS_SUCCESS_KEYPOINT_TOL_SCALE",
+            float(getattr(cfg, "srsa_process_success_keypoint_tol_scale", 2.0)),
+        )
+        cfg.srsa_process_success_keypoint_tol_min = _read_optional_float_env(
+            "SRSA_PROCESS_SUCCESS_KEYPOINT_TOL_MIN",
+            getattr(cfg, "srsa_process_success_keypoint_tol_min", 0.001),
+        )
+        cfg.srsa_process_success_keypoint_tol_max = _read_optional_float_env(
+            "SRSA_PROCESS_SUCCESS_KEYPOINT_TOL_MAX",
+            getattr(cfg, "srsa_process_success_keypoint_tol_max", 0.003),
+        )
+        cfg.srsa_process_success_stable_steps = _read_int_env(
+            "SRSA_PROCESS_SUCCESS_STABLE_STEPS",
+            int(getattr(cfg, "srsa_process_success_stable_steps", 3)),
+        )
+        cfg.srsa_process_success_require_official = _read_bool_env(
+            "SRSA_PROCESS_SUCCESS_REQUIRE_OFFICIAL",
+            bool(getattr(cfg, "srsa_process_success_require_official", False)),
+        )
+        cfg.srsa_process_success_require_no_jam = _read_bool_env(
+            "SRSA_PROCESS_SUCCESS_REQUIRE_NO_JAM",
+            bool(getattr(cfg, "srsa_process_success_require_no_jam", True)),
+        )
         cfg.enable_axial_task_param_sampler = enable_axial_task_param_sampler
         if cfg.newt_obs:
             cfg.action_space = cfg.newt_action_dim
@@ -418,6 +509,13 @@ class AssemblyRuntimeEnvMixin:
         self.action_mask = self._newt_action_mask
         self._init_task_param_runtime()
         self._init_flange_force_sensor_runtime()
+        self._init_srsa_success_runtime()
+
+    def _init_srsa_success_runtime(self) -> None:
+        self._srsa_process_success_streak = torch.zeros((self.num_envs,), dtype=torch.int64, device=self.device)
+        self._srsa_episode_process_success = torch.zeros((self.num_envs,), dtype=torch.bool, device=self.device)
+        self._srsa_episode_official_success = torch.zeros((self.num_envs,), dtype=torch.bool, device=self.device)
+        self._last_srsa_success_metrics = None
 
     def _setup_scene(self):
         super()._setup_scene()
@@ -797,37 +895,247 @@ class AssemblyRuntimeEnvMixin:
             self.episode_length_buf,
         ).to(dtype=torch.bool)
 
-    def _compute_depth_contact_jam(self) -> dict[str, torch.Tensor]:
-        rel_socket = self._held_fixed_delta_socket()
-        target_depth = self.current_insertion_depth_tensor.reshape(-1, 1)
-        current_depth = (target_depth[:, 0] - rel_socket[:, 2]).clamp_min(0.0)
-        depth_fraction = current_depth / target_depth[:, 0].clamp_min(1.0e-6)
-        lateral_error = torch.linalg.norm(rel_socket[:, :2], dim=-1)
-        contact = self.flange_force_flag.reshape(-1)
-        success = self._compute_current_success()
-        radial_clearance = self.current_task_param_tensors.get("radial_clearance")
-        if radial_clearance is None:
-            radial_clearance = torch.zeros((self.num_envs,), dtype=torch.float32, device=self.device)
-        jam_lateral_thresh = torch.maximum(
-            radial_clearance.to(self.device).reshape(-1), self.current_close_error_thresh_tensor
+    def _srsa_env_vector(self, value, *, dtype=torch.float32, default=0.0) -> torch.Tensor:
+        if value is None:
+            value = default
+        try:
+            if torch.is_tensor(value):
+                tensor = value.to(device=self.device, dtype=dtype)
+            else:
+                tensor = torch.as_tensor(value, device=self.device, dtype=dtype)
+        except (TypeError, ValueError, RuntimeError):
+            tensor = torch.as_tensor(default, device=self.device, dtype=dtype)
+
+        if tensor.numel() == 1:
+            return tensor.reshape(1).expand(self.num_envs)
+        if tensor.shape[0] == self.num_envs:
+            return tensor.reshape(self.num_envs, -1)[:, 0]
+        if tensor.numel() == self.num_envs:
+            return tensor.reshape(self.num_envs)
+        return torch.full((self.num_envs,), default, dtype=dtype, device=self.device)
+
+    def _srsa_task_param_vector(self, key: str, *, default=0.0) -> torch.Tensor:
+        params = getattr(self, "current_task_param_tensors", None)
+        if isinstance(params, dict) and key in params:
+            return self._srsa_env_vector(params[key], dtype=torch.float32, default=default)
+
+        params = getattr(self, "current_task_params", None)
+        if isinstance(params, dict) and key in params:
+            return self._srsa_env_vector(params[key], dtype=torch.float32, default=default)
+
+        return torch.full((self.num_envs,), float(default), dtype=torch.float32, device=self.device)
+
+    def _select_srsa_success(self, metrics: dict) -> torch.Tensor:
+        metric = _normalize_srsa_success_metric(
+            metrics.get("success_metric", getattr(self.cfg, "srsa_eval_success_metric", "terminal_process"))
         )
-        jam = contact & (~success) & (lateral_error > jam_lateral_thresh)
-        return {
-            "success": success,
-            "contact": contact,
-            "current_depth": current_depth,
-            "target_depth": target_depth[:, 0],
-            "depth_fraction": depth_fraction,
-            "lateral_error": lateral_error,
-            "jam": jam,
+        if metric == "official":
+            return metrics["official_success"]
+        if metric == "current_official":
+            return metrics["current_official_success"]
+        if metric == "process":
+            return metrics["process_success"]
+        if metric == "episode_process":
+            return metrics["episode_process_success"]
+        if metric == "terminal_process":
+            return metrics["terminal_process_success"]
+        if metric == "dual":
+            return metrics["dual_success"]
+        raise AssertionError(f"Unhandled SRSA success metric: {metric}")
+
+    def _cache_srsa_success_metrics(self, metrics: dict) -> None:
+        self._last_srsa_success_metrics = {
+            key: value.detach().clone() if torch.is_tensor(value) else value
+            for key, value in metrics.items()
+            if not key.startswith("_")
         }
+
+    def _reset_srsa_success_state(self, env_ids=None) -> None:
+        self._last_srsa_success_metrics = None
+        if not hasattr(self, "_srsa_process_success_streak"):
+            return
+        if env_ids is None:
+            self._srsa_process_success_streak.zero_()
+            self._srsa_episode_process_success.zero_()
+            self._srsa_episode_official_success.zero_()
+            return
+        env_ids = self._env_ids_to_tensor(env_ids)
+        if env_ids.numel() == 0:
+            return
+        self._srsa_process_success_streak[env_ids] = 0
+        self._srsa_episode_process_success[env_ids] = False
+        self._srsa_episode_official_success[env_ids] = False
+
+    def _compute_srsa_success_metrics(
+        self,
+        current_official_success: torch.Tensor | None = None,
+        *,
+        update_state: bool = False,
+    ) -> dict:
+        zeros = torch.zeros((self.num_envs,), dtype=torch.float32, device=self.device)
+        false = torch.zeros((self.num_envs,), dtype=torch.bool, device=self.device)
+
+        current_official = (
+            self._compute_current_success()
+            if current_official_success is None
+            else self._srsa_env_vector(current_official_success, dtype=torch.bool, default=False)
+        )
+        episode_official = getattr(self, "_srsa_episode_official_success", false) | current_official
+
+        target_depth = self._srsa_env_vector(
+            getattr(self, "current_insertion_depth_tensor", None),
+            dtype=torch.float32,
+            default=0.0,
+        )
+        fallback_depth = self._srsa_env_vector(
+            getattr(self, "disassembly_dists", None),
+            dtype=torch.float32,
+            default=0.0,
+        )
+        target_depth = torch.where(target_depth > 0.0, target_depth, fallback_depth)
+
+        radial_clearance = self._srsa_task_param_vector("radial_clearance", default=0.0)
+        if torch.all(radial_clearance <= 0.0):
+            diametral_clearance = self._srsa_task_param_vector("clearance", default=0.0)
+            if torch.all(diametral_clearance <= 0.0):
+                hole_diameter = self._srsa_task_param_vector("hole_diameter", default=0.0)
+                plug_diameter = self._srsa_task_param_vector("plug_diameter", default=0.0)
+                diametral_clearance = (hole_diameter - plug_diameter).clamp_min(0.0)
+            radial_clearance = 0.5 * diametral_clearance.clamp_min(0.0)
+
+        rel_socket = self._held_fixed_delta_socket().to(dtype=torch.float32)
+        current_depth = (target_depth - rel_socket[:, 2]).clamp_min(0.0)
+        depth_fraction = current_depth / target_depth.clamp_min(1.0e-6)
+        height_window_ok = (rel_socket[:, 2] > 0.0) & (rel_socket[:, 2] < target_depth.clamp_min(1.0e-6))
+        depth_ok = height_window_ok & (
+            depth_fraction >= float(getattr(self.cfg, "srsa_process_success_depth_ratio", 0.85))
+        )
+
+        lateral_error = torch.linalg.norm(rel_socket[:, :2], dim=-1)
+        lateral_tol = _clamped_tolerance(
+            radial_clearance,
+            float(getattr(self.cfg, "srsa_process_success_lateral_tol_scale", 2.0)),
+            getattr(self.cfg, "srsa_process_success_lateral_tol_min", 0.001),
+            getattr(self.cfg, "srsa_process_success_lateral_tol_max", 0.003),
+        )
+        lateral_ok = lateral_error <= lateral_tol
+
+        orientation_error = zeros.clone()
+        yaw_error = zeros.clone()
+        if all(hasattr(self, name) for name in ("held_quat", "fixed_quat")):
+            try:
+                rel_quat = torch_utils.quat_mul(self.held_quat, torch_utils.quat_conjugate(self.fixed_quat))
+                rel_quat = torch.where(rel_quat[:, :1] < 0.0, -rel_quat, rel_quat)
+                rel_euler = torch.stack(torch_utils.get_euler_xyz(rel_quat), dim=1)
+                rel_euler = torch.atan2(torch.sin(rel_euler), torch.cos(rel_euler))
+                orientation_error = torch.amax(torch.abs(rel_euler[:, :2]), dim=-1).to(dtype=torch.float32)
+                yaw_error = torch.abs(rel_euler[:, 2]).to(dtype=torch.float32)
+            except Exception:
+                pass
+        orientation_ok = orientation_error <= float(
+            getattr(self.cfg, "srsa_process_success_orientation_tol_rad", 0.0872665)
+        )
+
+        yaw_required = self._srsa_task_param_vector("yaw_requirement_float", default=0.0) > 0.5
+        if bool(getattr(self.cfg, "axial_yaw_requirement", False)):
+            yaw_required = torch.full_like(yaw_required, True)
+        yaw_ok = (~yaw_required) | (
+            yaw_error <= float(getattr(self.cfg, "srsa_process_success_yaw_tol_rad", 0.0872665))
+        )
+
+        keypoint_error = zeros.clone()
+        if all(hasattr(self, name) for name in ("keypoints_held", "keypoints_fixed")):
+            keypoint_error = torch.linalg.norm(self.keypoints_fixed - self.keypoints_held, dim=-1).mean(dim=-1)
+            keypoint_error = keypoint_error.to(dtype=torch.float32)
+        keypoint_tol = _clamped_tolerance(
+            radial_clearance,
+            float(getattr(self.cfg, "srsa_process_success_keypoint_tol_scale", 2.0)),
+            getattr(self.cfg, "srsa_process_success_keypoint_tol_min", 0.001),
+            getattr(self.cfg, "srsa_process_success_keypoint_tol_max", 0.003),
+        )
+        keypoint_ok = keypoint_error <= keypoint_tol
+
+        contact = self._srsa_env_vector(getattr(self, "flange_force_flag", false), dtype=torch.bool, default=False)
+        jam_lateral_thresh = torch.maximum(radial_clearance, lateral_tol)
+        jam = contact & (~current_official) & (lateral_error > jam_lateral_thresh)
+
+        process = depth_ok & lateral_ok & orientation_ok & yaw_ok & keypoint_ok
+        if bool(getattr(self.cfg, "srsa_process_success_require_no_jam", True)):
+            process = process & (~jam)
+        if bool(getattr(self.cfg, "srsa_process_success_require_official", False)):
+            process = process & current_official
+
+        current_streak = getattr(self, "_srsa_process_success_streak", torch.zeros_like(process, dtype=torch.int64))
+        next_streak = torch.where(process, current_streak + 1, torch.zeros_like(current_streak))
+        stable_steps = max(1, int(getattr(self.cfg, "srsa_process_success_stable_steps", 3)))
+        terminal_process = process & (next_streak >= stable_steps)
+        episode_process = getattr(self, "_srsa_episode_process_success", false) | terminal_process
+        dual = episode_official & terminal_process
+
+        metrics = {
+            "success_metric": _normalize_srsa_success_metric(
+                getattr(self.cfg, "srsa_eval_success_metric", "terminal_process")
+            ),
+            "official_success": episode_official,
+            "current_official_success": current_official,
+            "process_success": process,
+            "episode_process_success": episode_process,
+            "terminal_process_success": terminal_process,
+            "dual_success": dual,
+            "depth_ok": depth_ok,
+            "lateral_ok": lateral_ok,
+            "orientation_ok": orientation_ok,
+            "yaw_ok": yaw_ok,
+            "keypoint_ok": keypoint_ok,
+            "jam": jam,
+            "contact": contact,
+            "depth_fraction": depth_fraction,
+            "current_depth": current_depth,
+            "target_depth": target_depth,
+            "lateral_error": lateral_error,
+            "lateral_tol": lateral_tol,
+            "orientation_error": orientation_error,
+            "yaw_error": yaw_error,
+            "keypoint_error": keypoint_error,
+            "keypoint_tol": keypoint_tol,
+            "radial_clearance": radial_clearance,
+            "process_success_streak": next_streak.to(dtype=torch.float32),
+            "_process_success_streak": next_streak,
+        }
+
+        success = self._select_srsa_success(metrics)
+        metrics["success"] = success
+        metrics["score"] = success.clone()
+
+        if update_state:
+            self._srsa_process_success_streak[:] = next_streak
+            self._srsa_episode_process_success[:] = episode_process
+            self._srsa_episode_official_success[:] = episode_official
+            self._cache_srsa_success_metrics(metrics)
+        return metrics
+
+    def _update_srsa_success_extras(self, metrics: dict | None = None) -> None:
+        if not hasattr(self, "extras") or not isinstance(self.extras, dict):
+            return
+        if metrics is None:
+            metrics = getattr(self, "_last_srsa_success_metrics", None) or self._compute_srsa_success_metrics(
+                update_state=False
+            )
+        for key, value in metrics.items():
+            if key.startswith("_") or not torch.is_tensor(value):
+                continue
+            self.extras[key] = value.detach().clone()
+
+    def _compute_depth_contact_jam(self) -> dict[str, torch.Tensor]:
+        return getattr(self, "_last_srsa_success_metrics", None) or self._compute_srsa_success_metrics(
+            update_state=False
+        )
 
     def _update_newt_task_extras(self) -> None:
         if not hasattr(self, "extras") or not isinstance(self.extras, dict):
             return
         metrics = self._compute_depth_contact_jam()
-        for key, value in metrics.items():
-            self.extras[key] = value.detach().clone()
+        self._update_srsa_success_extras(metrics)
         self.extras["force"] = {
             "world": self.flange_force_world.detach().clone(),
             "socket": self.flange_force_socket.detach().clone(),
@@ -876,6 +1184,7 @@ class AssemblyRuntimeEnvMixin:
 
     def _reset_idx(self, env_ids):
         env_ids = self._env_ids_to_tensor(env_ids)
+        self._reset_srsa_success_state(env_ids)
         self._prepare_axial_task_reset(env_ids)
         super()._reset_idx(env_ids)
 

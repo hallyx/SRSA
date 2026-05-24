@@ -17,32 +17,19 @@ class AssemblySparseEnv(AssemblyRuntimeEnvMixin, AssemblyEnv):
 
     def _get_rewards(self):
         """Update rewards and compute success statistics."""
-        # Get successful and failed envs at current timestep
-        insertion_depth = self.disassembly_dists
-        close_error_thresh = self.cfg_task.close_error_thresh
-        if hasattr(self, "current_insertion_depth_tensor"):
-            insertion_depth = self.current_insertion_depth_tensor
-        elif hasattr(self, "current_insertion_depth"):
-            insertion_depth = torch.full_like(self.disassembly_dists, float(self.current_insertion_depth))
-        if hasattr(self, "current_close_error_thresh_tensor"):
-            close_error_thresh = self.current_close_error_thresh_tensor
-        elif hasattr(self, "current_close_error_thresh"):
-            close_error_thresh = float(self.current_close_error_thresh)
-
-        curr_successes = automate_algo.check_plug_inserted_in_socket(
-            self.held_pos,
-            self.fixed_pos,
-            insertion_depth,
-            self.keypoints_held,
-            self.keypoints_fixed,
-            close_error_thresh,
-            self.episode_length_buf,
-        )
+        success_metrics = self._compute_srsa_success_metrics(update_state=True)
+        curr_successes = success_metrics["success"].to(dtype=torch.bool)
 
         rew_buf = self._update_rew_buf(curr_successes)
         if hasattr(self, "_update_task_param_extras"):
             self._update_task_param_extras()
-        
+        if hasattr(self, "_update_flange_force_extras"):
+            self._update_flange_force_extras()
+        if hasattr(self, "_update_srsa_success_extras"):
+            self._update_srsa_success_extras(success_metrics)
+        if hasattr(self, "_update_newt_task_extras"):
+            self._update_newt_task_extras()
+
         # Only log episode success rates at the end of an episode.
         if torch.any(self.reset_buf):
             self.extras["successes"] = torch.count_nonzero(self.ep_succeeded) / self.num_envs

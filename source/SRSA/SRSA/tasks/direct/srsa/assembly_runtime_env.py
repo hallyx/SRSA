@@ -77,6 +77,28 @@ def _read_optional_float_pair_env(name: str, default=None):
     return [float(parts[0]), float(parts[1])]
 
 
+def _read_optional_float_triplet_env(name: str, default=None):
+    value = os.environ.get(name)
+    if value is None or value.strip() == "":
+        return default
+    normalized = value.replace(":", ",").replace(";", ",")
+    parts = [item.strip() for item in normalized.split(",") if item.strip()]
+    if len(parts) != 3:
+        raise ValueError(f"{name} must contain exactly three floats, got {value!r}.")
+    return [float(parts[0]), float(parts[1]), float(parts[2])]
+
+
+def _read_optional_int_pair_env(name: str, default=None):
+    value = os.environ.get(name)
+    if value is None or value.strip() == "":
+        return default
+    normalized = value.replace(":", ",").replace(";", ",")
+    parts = [item.strip() for item in normalized.split(",") if item.strip()]
+    if len(parts) != 2:
+        raise ValueError(f"{name} must contain exactly two integers, got {value!r}.")
+    return [int(parts[0]), int(parts[1])]
+
+
 def _read_optional_float_list_env(name: str, default=None):
     value = os.environ.get(name)
     if value is None or value.strip() == "":
@@ -119,6 +141,17 @@ def _task_param_obs_dim(mode: str | None) -> int:
     if _normalize_task_param_obs_mode(mode) == "task_vec":
         return len(AXIAL_TASK_VEC_FIELD_ORDER)
     return len(TASK_PARAM_TENSOR_FIELD_ORDER)
+
+
+def _policy_obs_base_dim(cfg) -> int:
+    base_dim = getattr(cfg, "_srsa_base_policy_observation_space", None)
+    if base_dim is not None:
+        return int(base_dim)
+
+    observation_space = getattr(cfg, "observation_space", 0)
+    if isinstance(observation_space, dict):
+        observation_space = observation_space.get("policy", 0)
+    return int(observation_space)
 
 
 def _normalize_srsa_success_metric(metric: str | None) -> str:
@@ -185,6 +218,9 @@ class AssemblyRuntimeEnvMixin:
 
     @staticmethod
     def _apply_runtime_task_overrides(cfg) -> None:
+        AssemblyRuntimeEnvMixin._apply_runtime_camera_overrides(cfg)
+        if not hasattr(cfg, "_srsa_base_policy_observation_space"):
+            cfg._srsa_base_policy_observation_space = _policy_obs_base_dim(cfg)
         task_cfg = cfg.tasks[cfg.task_name]
 
         assembly_id = os.environ.get("SRSA_ASSEMBLY_ID", "").strip()
@@ -241,7 +277,7 @@ class AssemblyRuntimeEnvMixin:
         newt_obs = _read_bool_env("SRSA_NEWT_OBS", bool(getattr(cfg, "newt_obs", False)))
         enable_axial_task_param_sampler = _read_bool_env(
             "SRSA_ENABLE_AXIAL_TASK_PARAM_SAMPLER",
-            bool(getattr(cfg, "enable_axial_task_param_sampler", True)),
+            bool(getattr(cfg, "enable_axial_task_param_sampler", False)),
         )
         cfg.newt_obs = newt_obs
         cfg.newt_state_dim = int(getattr(cfg, "newt_state_dim", NEWT_STATE_DIM))
@@ -412,10 +448,6 @@ class AssemblyRuntimeEnvMixin:
         )
         cfg.runtime_task_param_overrides = runtime_task_param_overrides
 
-        if cfg.task_param_obs and not getattr(cfg, "_srsa_task_param_obs_augmented", False):
-            cfg.observation_space = int(getattr(cfg, "observation_space", 0)) + int(cfg.task_param_obs_dim)
-            cfg._srsa_task_param_obs_augmented = True
-
         if use_task_param or cfg.task_param_obs:
             preview_params = resolve_effective_task_params(
                 base_task_cfg=task_cfg,
@@ -444,6 +476,10 @@ class AssemblyRuntimeEnvMixin:
             "SRSA_FLANGE_FORCE_SENSOR_SOURCE",
             str(getattr(cfg, "flange_force_sensor_source", "held_sensor")),
         )
+        cfg.flange_force_sensor_obs = _read_bool_env(
+            "SRSA_FLANGE_FORCE_SENSOR_OBS",
+            bool(getattr(cfg, "flange_force_sensor_obs", True)),
+        )
         cfg.flange_force_sensor_obs_frame = os.environ.get(
             "SRSA_FLANGE_FORCE_SENSOR_OBS_FRAME",
             str(getattr(cfg, "flange_force_sensor_obs_frame", "socket")),
@@ -461,11 +497,35 @@ class AssemblyRuntimeEnvMixin:
         if sensor_cfg is not None:
             sensor_cfg.prim_path = f"/World/envs/env_.*/Robot/{cfg.flange_force_sensor_body_name}"
         if cfg.enable_flange_force_sensor:
-            if not getattr(cfg, "_srsa_flange_force_obs_augmented", False):
-                cfg.observation_space = int(getattr(cfg, "observation_space", 0)) + 3
-                cfg._srsa_flange_force_obs_augmented = True
             if hasattr(cfg, "robot") and hasattr(cfg.robot, "spawn") and hasattr(cfg.robot.spawn, "activate_contact_sensors"):
                 cfg.robot.spawn.activate_contact_sensors = True
+
+        policy_dim = _policy_obs_base_dim(cfg)
+        if cfg.enable_flange_force_sensor and cfg.flange_force_sensor_obs:
+            policy_dim += 3
+        if cfg.task_param_obs:
+            policy_dim += int(cfg.task_param_obs_dim)
+        cfg.observation_space = policy_dim
+
+    @staticmethod
+    def _apply_runtime_camera_overrides(cfg) -> None:
+        """Apply recording camera overrides before the viewport controller is created."""
+        camera_eye = _read_optional_float_triplet_env("SRSA_CAMERA_EYE")
+        if camera_eye is not None:
+            cfg.viewer.eye = tuple(camera_eye)
+
+        camera_lookat = _read_optional_float_triplet_env("SRSA_CAMERA_LOOKAT")
+        if camera_lookat is not None:
+            cfg.viewer.lookat = tuple(camera_lookat)
+
+        camera_resolution = _read_optional_int_pair_env("SRSA_CAMERA_RESOLUTION")
+        if camera_resolution is not None:
+            cfg.viewer.resolution = tuple(camera_resolution)
+
+        camera_env_index = _read_optional_int_env("SRSA_CAMERA_ENV_INDEX")
+        if camera_env_index is not None:
+            cfg.viewer.env_index = camera_env_index
+            cfg.viewer.origin_type = "env"
 
     @staticmethod
     def _apply_task_param_cfg_preview(task_cfg, effective_params: dict) -> None:
@@ -516,6 +576,205 @@ class AssemblyRuntimeEnvMixin:
         self._srsa_episode_process_success = torch.zeros((self.num_envs,), dtype=torch.bool, device=self.device)
         self._srsa_episode_official_success = torch.zeros((self.num_envs,), dtype=torch.bool, device=self.device)
         self._last_srsa_success_metrics = None
+
+    def _init_eval_logging(self):
+        super()._init_eval_logging()
+        self._init_srsa_eval_diagnostic_logging()
+
+    def _init_srsa_eval_diagnostic_logging(self) -> None:
+        log_specs = {
+            "force_max": 1,
+            "force_mean": 1,
+            "force_final": 1,
+            "force_world_final": 3,
+            "force_socket_final": 3,
+            "contact": 1,
+            "contact_steps": 1,
+            "jam": 1,
+            "jam_steps": 1,
+            "lateral_error_max": 1,
+            "lateral_error_final": 1,
+            "depth_fraction_max": 1,
+            "depth_fraction_final": 1,
+            "current_depth_final": 1,
+            "target_depth_final": 1,
+            "orientation_error_final": 1,
+            "yaw_error_final": 1,
+            "keypoint_error_final": 1,
+        }
+        self._srsa_eval_diagnostic_logs = {
+            name: torch.empty((0, width), dtype=torch.float32, device=self.device)
+            for name, width in log_specs.items()
+        }
+        self._srsa_eval_step_count = torch.zeros((self.num_envs, 1), dtype=torch.float32, device=self.device)
+        self._srsa_eval_force_sum = torch.zeros((self.num_envs, 1), dtype=torch.float32, device=self.device)
+        self._srsa_eval_force_max = torch.zeros((self.num_envs, 1), dtype=torch.float32, device=self.device)
+        self._srsa_eval_force_final = torch.zeros((self.num_envs, 1), dtype=torch.float32, device=self.device)
+        self._srsa_eval_force_world_final = torch.zeros((self.num_envs, 3), dtype=torch.float32, device=self.device)
+        self._srsa_eval_force_socket_final = torch.zeros((self.num_envs, 3), dtype=torch.float32, device=self.device)
+        self._srsa_eval_contact_any = torch.zeros((self.num_envs, 1), dtype=torch.bool, device=self.device)
+        self._srsa_eval_contact_steps = torch.zeros((self.num_envs, 1), dtype=torch.float32, device=self.device)
+        self._srsa_eval_jam_any = torch.zeros((self.num_envs, 1), dtype=torch.bool, device=self.device)
+        self._srsa_eval_jam_steps = torch.zeros((self.num_envs, 1), dtype=torch.float32, device=self.device)
+        self._srsa_eval_lateral_error_max = torch.zeros((self.num_envs, 1), dtype=torch.float32, device=self.device)
+        self._srsa_eval_lateral_error_final = torch.zeros((self.num_envs, 1), dtype=torch.float32, device=self.device)
+        self._srsa_eval_depth_fraction_max = torch.zeros((self.num_envs, 1), dtype=torch.float32, device=self.device)
+        self._srsa_eval_depth_fraction_final = torch.zeros((self.num_envs, 1), dtype=torch.float32, device=self.device)
+        self._srsa_eval_current_depth_final = torch.zeros((self.num_envs, 1), dtype=torch.float32, device=self.device)
+        self._srsa_eval_target_depth_final = torch.zeros((self.num_envs, 1), dtype=torch.float32, device=self.device)
+        self._srsa_eval_orientation_error_final = torch.zeros((self.num_envs, 1), dtype=torch.float32, device=self.device)
+        self._srsa_eval_yaw_error_final = torch.zeros((self.num_envs, 1), dtype=torch.float32, device=self.device)
+        self._srsa_eval_keypoint_error_final = torch.zeros((self.num_envs, 1), dtype=torch.float32, device=self.device)
+
+    def _reset_srsa_eval_diagnostic_state(self, env_ids=None) -> None:
+        if not hasattr(self, "_srsa_eval_step_count"):
+            return
+        if env_ids is None:
+            env_ids = torch.arange(self.num_envs, dtype=torch.long, device=self.device)
+        else:
+            env_ids = self._env_ids_to_tensor(env_ids)
+        if env_ids.numel() == 0:
+            return
+
+        self._srsa_eval_step_count[env_ids] = 0.0
+        self._srsa_eval_force_sum[env_ids] = 0.0
+        self._srsa_eval_force_max[env_ids] = 0.0
+        self._srsa_eval_force_final[env_ids] = 0.0
+        self._srsa_eval_force_world_final[env_ids] = 0.0
+        self._srsa_eval_force_socket_final[env_ids] = 0.0
+        self._srsa_eval_contact_any[env_ids] = False
+        self._srsa_eval_contact_steps[env_ids] = 0.0
+        self._srsa_eval_jam_any[env_ids] = False
+        self._srsa_eval_jam_steps[env_ids] = 0.0
+        self._srsa_eval_lateral_error_max[env_ids] = 0.0
+        self._srsa_eval_lateral_error_final[env_ids] = 0.0
+        self._srsa_eval_depth_fraction_max[env_ids] = 0.0
+        self._srsa_eval_depth_fraction_final[env_ids] = 0.0
+        self._srsa_eval_current_depth_final[env_ids] = 0.0
+        self._srsa_eval_target_depth_final[env_ids] = 0.0
+        self._srsa_eval_orientation_error_final[env_ids] = 0.0
+        self._srsa_eval_yaw_error_final[env_ids] = 0.0
+        self._srsa_eval_keypoint_error_final[env_ids] = 0.0
+
+    def _srsa_eval_metric_column(
+        self,
+        metrics: dict | None,
+        key: str,
+        *,
+        dtype=torch.float32,
+        default=0.0,
+    ) -> torch.Tensor:
+        value = metrics.get(key, default) if isinstance(metrics, dict) else default
+        return self._srsa_env_vector(value, dtype=dtype, default=default).reshape(self.num_envs, 1)
+
+    def _srsa_eval_vector3(self, value) -> torch.Tensor:
+        if value is None:
+            return torch.zeros((self.num_envs, 3), dtype=torch.float32, device=self.device)
+        if torch.is_tensor(value):
+            tensor = value.to(device=self.device, dtype=torch.float32)
+        else:
+            tensor = torch.as_tensor(value, dtype=torch.float32, device=self.device)
+        if tensor.numel() == 3:
+            return tensor.reshape(1, 3).expand(self.num_envs, 3)
+        if tensor.ndim >= 2 and tensor.shape[0] == self.num_envs:
+            tensor = tensor.reshape(self.num_envs, -1)
+            if tensor.shape[1] >= 3:
+                return tensor[:, :3]
+        return torch.zeros((self.num_envs, 3), dtype=torch.float32, device=self.device)
+
+    def _update_srsa_eval_diagnostics(self, metrics: dict | None = None) -> None:
+        if not bool(getattr(getattr(self, "cfg_task", None), "if_logging_eval", False)):
+            return
+        if not hasattr(self, "_srsa_eval_step_count"):
+            self._init_srsa_eval_diagnostic_logging()
+
+        force_norm = self._srsa_env_vector(
+            getattr(self, "flange_force_norm", None),
+            dtype=torch.float32,
+            default=0.0,
+        ).reshape(self.num_envs, 1)
+        contact = self._srsa_eval_metric_column(metrics, "contact", dtype=torch.bool, default=False)
+        jam = self._srsa_eval_metric_column(metrics, "jam", dtype=torch.bool, default=False)
+        lateral_error = self._srsa_eval_metric_column(metrics, "lateral_error")
+        depth_fraction = self._srsa_eval_metric_column(metrics, "depth_fraction")
+
+        self._srsa_eval_step_count += 1.0
+        self._srsa_eval_force_sum += force_norm
+        self._srsa_eval_force_max[:] = torch.maximum(self._srsa_eval_force_max, force_norm)
+        self._srsa_eval_force_final[:] = force_norm
+        self._srsa_eval_force_world_final[:] = self._srsa_eval_vector3(getattr(self, "flange_force_world", None))
+        self._srsa_eval_force_socket_final[:] = self._srsa_eval_vector3(getattr(self, "flange_force_socket", None))
+        self._srsa_eval_contact_any[:] = self._srsa_eval_contact_any | contact
+        self._srsa_eval_contact_steps += contact.to(dtype=torch.float32)
+        self._srsa_eval_jam_any[:] = self._srsa_eval_jam_any | jam
+        self._srsa_eval_jam_steps += jam.to(dtype=torch.float32)
+        self._srsa_eval_lateral_error_max[:] = torch.maximum(self._srsa_eval_lateral_error_max, lateral_error)
+        self._srsa_eval_lateral_error_final[:] = lateral_error
+        self._srsa_eval_depth_fraction_max[:] = torch.maximum(self._srsa_eval_depth_fraction_max, depth_fraction)
+        self._srsa_eval_depth_fraction_final[:] = depth_fraction
+        self._srsa_eval_current_depth_final[:] = self._srsa_eval_metric_column(metrics, "current_depth")
+        self._srsa_eval_target_depth_final[:] = self._srsa_eval_metric_column(metrics, "target_depth")
+        self._srsa_eval_orientation_error_final[:] = self._srsa_eval_metric_column(metrics, "orientation_error")
+        self._srsa_eval_yaw_error_final[:] = self._srsa_eval_metric_column(metrics, "yaw_error")
+        self._srsa_eval_keypoint_error_final[:] = self._srsa_eval_metric_column(metrics, "keypoint_error")
+
+    def _append_srsa_eval_diagnostics_log(self, metrics: dict | None = None) -> None:
+        if not bool(getattr(getattr(self, "cfg_task", None), "if_logging_eval", False)):
+            return
+        if not hasattr(self, "_srsa_eval_step_count"):
+            self._init_srsa_eval_diagnostic_logging()
+        if torch.all(self._srsa_eval_step_count <= 0.0):
+            self._update_srsa_eval_diagnostics(metrics)
+
+        force_mean = self._srsa_eval_force_sum / self._srsa_eval_step_count.clamp_min(1.0)
+        values = {
+            "force_max": self._srsa_eval_force_max,
+            "force_mean": force_mean,
+            "force_final": self._srsa_eval_force_final,
+            "force_world_final": self._srsa_eval_force_world_final,
+            "force_socket_final": self._srsa_eval_force_socket_final,
+            "contact": self._srsa_eval_contact_any.to(dtype=torch.float32),
+            "contact_steps": self._srsa_eval_contact_steps,
+            "jam": self._srsa_eval_jam_any.to(dtype=torch.float32),
+            "jam_steps": self._srsa_eval_jam_steps,
+            "lateral_error_max": self._srsa_eval_lateral_error_max,
+            "lateral_error_final": self._srsa_eval_lateral_error_final,
+            "depth_fraction_max": self._srsa_eval_depth_fraction_max,
+            "depth_fraction_final": self._srsa_eval_depth_fraction_final,
+            "current_depth_final": self._srsa_eval_current_depth_final,
+            "target_depth_final": self._srsa_eval_target_depth_final,
+            "orientation_error_final": self._srsa_eval_orientation_error_final,
+            "yaw_error_final": self._srsa_eval_yaw_error_final,
+            "keypoint_error_final": self._srsa_eval_keypoint_error_final,
+        }
+        for name, value in values.items():
+            self._srsa_eval_diagnostic_logs[name] = torch.cat(
+                [self._srsa_eval_diagnostic_logs[name], value.detach().clone()],
+                dim=0,
+            )
+
+    def _write_srsa_eval_log_to_hdf5(self, eval_logging_filename: str) -> None:
+        import h5py
+
+        def to_numpy(tensor):
+            return tensor.detach().cpu().numpy()
+
+        num_records = int(getattr(self, "success_log", torch.empty(0)).shape[0])
+        with h5py.File(eval_logging_filename, "w") as hf:
+            hf.create_dataset("held_asset_pose", data=to_numpy(self.held_asset_pose_log))
+            hf.create_dataset("fixed_asset_pose", data=to_numpy(self.fixed_asset_pose_log))
+            hf.create_dataset("success", data=to_numpy(self.success_log))
+            for name, tensor in getattr(self, "_srsa_eval_diagnostic_logs", {}).items():
+                hf.create_dataset(name, data=to_numpy(tensor[:num_records]))
+
+            hf.attrs["diagnostic_log_version"] = 1
+            hf.attrs["force_units"] = "N"
+            hf.attrs["assembly_id"] = str(os.environ.get("SRSA_ASSEMBLY_ID", ""))
+            hf.attrs["success_metric"] = str(getattr(self.cfg, "srsa_eval_success_metric", "terminal_process"))
+            hf.attrs["flange_force_sensor_enabled"] = int(bool(self.enable_flange_force_sensor))
+            hf.attrs["flange_force_sensor_obs"] = int(bool(self.flange_force_sensor_obs))
+            hf.attrs["flange_force_sensor_source"] = str(self.flange_force_sensor_source)
+            hf.attrs["flange_force_sensor_force_threshold"] = float(self.flange_force_sensor_force_threshold)
 
     def _setup_scene(self):
         super()._setup_scene()
@@ -573,8 +832,10 @@ class AssemblyRuntimeEnvMixin:
             self.prev_actions = torch.zeros_like(self.actions)
             return
 
-        policy_dim = int(getattr(self.cfg, "observation_space", 0))
-        if bool(getattr(self.cfg, "enable_flange_force_sensor", False)):
+        policy_dim = _policy_obs_base_dim(self.cfg)
+        if bool(getattr(self.cfg, "enable_flange_force_sensor", False)) and bool(
+            getattr(self.cfg, "flange_force_sensor_obs", True)
+        ):
             policy_dim += 3
         if bool(getattr(self.cfg, "task_param_obs", False)):
             policy_dim += int(
@@ -593,6 +854,7 @@ class AssemblyRuntimeEnvMixin:
     def _init_flange_force_sensor_runtime(self) -> None:
         self.enable_flange_force_sensor = bool(getattr(self.cfg, "enable_flange_force_sensor", False))
         self.flange_force_sensor_source = str(getattr(self.cfg, "flange_force_sensor_source", "held_sensor")).lower()
+        self.flange_force_sensor_obs = bool(getattr(self.cfg, "flange_force_sensor_obs", True))
         self.flange_force_sensor_obs_frame = str(getattr(self.cfg, "flange_force_sensor_obs_frame", "socket")).lower()
         self.flange_force_sensor_obs_scale = float(getattr(self.cfg, "flange_force_sensor_obs_scale", 50.0))
         self.flange_force_sensor_force_threshold = float(
@@ -694,7 +956,7 @@ class AssemblyRuntimeEnvMixin:
         self.use_task_param = bool(getattr(self.cfg, "use_task_param", False))
         self.task_param_obs = bool(getattr(self.cfg, "task_param_obs", False))
         self.task_param_obs_mode = _normalize_task_param_obs_mode(getattr(self.cfg, "task_param_obs_mode", "task_vec"))
-        self.enable_axial_task_param_sampler = bool(getattr(self.cfg, "enable_axial_task_param_sampler", True))
+        self.enable_axial_task_param_sampler = bool(getattr(self.cfg, "enable_axial_task_param_sampler", False))
         self.enable_task_param = bool(self.use_task_param or self.task_param_obs or self.enable_axial_task_param_sampler)
         self.current_task_param_tensor = None
         self.current_task_params = {}
@@ -1165,7 +1427,7 @@ class AssemblyRuntimeEnvMixin:
         return observations
 
     def _augment_policy_observation_with_flange_force(self, observations):
-        if not self.enable_flange_force_sensor:
+        if not self.enable_flange_force_sensor or not self.flange_force_sensor_obs:
             return observations
 
         if isinstance(observations, dict) and isinstance(observations.get("policy"), torch.Tensor):
@@ -1185,6 +1447,7 @@ class AssemblyRuntimeEnvMixin:
     def _reset_idx(self, env_ids):
         env_ids = self._env_ids_to_tensor(env_ids)
         self._reset_srsa_success_state(env_ids)
+        self._reset_srsa_eval_diagnostic_state(env_ids)
         self._prepare_axial_task_reset(env_ids)
         super()._reset_idx(env_ids)
 

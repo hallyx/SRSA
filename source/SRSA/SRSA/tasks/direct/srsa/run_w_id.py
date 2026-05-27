@@ -124,6 +124,49 @@ def main():
         default=100,
         help="Number of evaluation episodes to record when --log_eval is enabled.",
     )
+    parser.add_argument("--video", action="store_true", help="Record an RGB video from the configured SRSA camera.")
+    parser.add_argument(
+        "--video_length",
+        type=int,
+        default=200,
+        help="Length of the recorded video in environment steps.",
+    )
+    parser.add_argument(
+        "--video_interval",
+        type=int,
+        default=2000,
+        help="Training step interval between video recordings when --train --video is used.",
+    )
+    parser.add_argument(
+        "--camera_eye",
+        type=float,
+        nargs=3,
+        metavar=("X", "Y", "Z"),
+        default=None,
+        help="Override recording camera eye position relative to the selected env origin.",
+    )
+    parser.add_argument(
+        "--camera_lookat",
+        type=float,
+        nargs=3,
+        metavar=("X", "Y", "Z"),
+        default=None,
+        help="Override recording camera target position relative to the selected env origin.",
+    )
+    parser.add_argument(
+        "--camera_resolution",
+        type=int,
+        nargs=2,
+        metavar=("WIDTH", "HEIGHT"),
+        default=None,
+        help="Override recording camera resolution.",
+    )
+    parser.add_argument(
+        "--camera_env_index",
+        type=int,
+        default=None,
+        help="Environment index used as the recording camera origin.",
+    )
     parser.add_argument(
         "--vision_noise",
         type=float,
@@ -235,6 +278,29 @@ def main():
         action="store_true",
         help="Compatibility flag; task-param observations are disabled by default.",
     )
+    parser.add_argument(
+        "--force_diagnostics",
+        action="store_true",
+        help="Enable force/contact diagnostic logging without changing the policy observation dimension.",
+    )
+    parser.add_argument(
+        "--flange_force_obs",
+        action="store_true",
+        help="Append flange force to policy observations. This changes the observation dimension.",
+    )
+    parser.add_argument(
+        "--flange_force_source",
+        type=str,
+        choices=("sensor", "held_sensor", "auto", "asset"),
+        default=None,
+        help="Force source used by SRSA diagnostics and optional force observations.",
+    )
+    parser.add_argument(
+        "--flange_force_threshold",
+        type=float,
+        default=None,
+        help="Contact threshold in Newtons used for contact/jam diagnostics.",
+    )
     parser.add_argument("--headless", action="store_true", help="Run in headless mode.")
     args = parser.parse_args()
 
@@ -257,8 +323,23 @@ def main():
     env["VISION_NOISE_XY_STD"] = str(float(args.vision_noise))
     env["VISION_NOISE_XY_JITTER_STD"] = str(float(args.vision_jitter))
     env["SRSA_TASK_PARAM_OBS"] = "1" if args.task_param_obs and not args.disable_task_param_obs else "0"
+    if args.force_diagnostics or args.flange_force_obs:
+        env["SRSA_ENABLE_FLANGE_FORCE_SENSOR"] = "1"
+        env["SRSA_FLANGE_FORCE_SENSOR_OBS"] = "1" if args.flange_force_obs else "0"
+    if args.flange_force_source is not None:
+        env["SRSA_FLANGE_FORCE_SENSOR_SOURCE"] = args.flange_force_source
+    if args.flange_force_threshold is not None:
+        env["SRSA_FLANGE_FORCE_SENSOR_FORCE_THRESHOLD"] = str(float(args.flange_force_threshold))
     if args.task_param_obs_mode is not None:
         env["SRSA_TASK_PARAM_OBS_MODE"] = args.task_param_obs_mode
+    if args.camera_eye is not None:
+        env["SRSA_CAMERA_EYE"] = ",".join(str(value) for value in args.camera_eye)
+    if args.camera_lookat is not None:
+        env["SRSA_CAMERA_LOOKAT"] = ",".join(str(value) for value in args.camera_lookat)
+    if args.camera_resolution is not None:
+        env["SRSA_CAMERA_RESOLUTION"] = ",".join(str(value) for value in args.camera_resolution)
+    if args.camera_env_index is not None:
+        env["SRSA_CAMERA_ENV_INDEX"] = str(args.camera_env_index)
 
     env_var_map = {
         "task_family_name": "SRSA_TASK_FAMILY_NAME",
@@ -313,6 +394,12 @@ def main():
 
     if checkpoint_arg:
         command.append(f"--checkpoint={checkpoint_arg}")
+
+    if args.video:
+        command.append("--video")
+        command.append(f"--video_length={args.video_length}")
+        if args.train:
+            command.append(f"--video_interval={args.video_interval}")
 
     if args.headless:
         command.append("--headless")

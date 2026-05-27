@@ -26,3 +26,5 @@ dist/
 *.egg-info/
 outputs/
 logs/
+
+videos/

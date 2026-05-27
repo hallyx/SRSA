@@ -88,6 +88,12 @@ import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import hydra_task_config
 import SRSA.tasks
 
+
+def _sanitize_video_name(name: str) -> str:
+    sanitized = "".join(char if char.isalnum() or char in ("-", "_") else "_" for char in str(name))
+    return sanitized.strip("_") or "srsa"
+
+
 @hydra_task_config(args_cli.task, "rl_games_cfg_entry_point")
 def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: dict):
     """Train with RL-Games agent."""
@@ -158,46 +164,64 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     # wrap for video recording
     if args_cli.video:
+        assembly_id = os.environ.get("SRSA_ASSEMBLY_ID", "").strip()
+        video_name_prefix = _sanitize_video_name(assembly_id or args_cli.task)
         video_kwargs = {
             "video_folder": os.path.join(log_root_path, log_dir, "videos", "train"),
             "step_trigger": lambda step: step % args_cli.video_interval == 0,
             "video_length": args_cli.video_length,
+            "name_prefix": video_name_prefix,
             "disable_logger": True,
         }
         print("[INFO] Recording videos during training.")
         print_dict(video_kwargs, nesting=4)
         env = gym.wrappers.RecordVideo(env, **video_kwargs)
 
-    # wrap around environment for rl-games
-    env = RlGamesVecEnvWrapper(env, rl_device, clip_obs, clip_actions)
+    try:
+        # wrap around environment for rl-games
+        env = RlGamesVecEnvWrapper(env, rl_device, clip_obs, clip_actions)
 
-    # register the environment to rl-games registry
-    # note: in agents configuration: environment name must be "rlgpu"
-    vecenv.register(
-        "IsaacRlgWrapper", lambda config_name, num_actors, **kwargs: RlGamesGpuEnv(config_name, num_actors, **kwargs)
-    )
-    env_configurations.register("rlgpu", {"vecenv_type": "IsaacRlgWrapper", "env_creator": lambda **kwargs: env})
+        # register the environment to rl-games registry
+        # note: in agents configuration: environment name must be "rlgpu"
+        vecenv.register(
+            "IsaacRlgWrapper",
+            lambda config_name, num_actors, **kwargs: RlGamesGpuEnv(config_name, num_actors, **kwargs),
+        )
+        env_configurations.register("rlgpu", {"vecenv_type": "IsaacRlgWrapper", "env_creator": lambda **kwargs: env})
 
-    # set number of actors into agent config
-    agent_cfg["params"]["config"]["num_actors"] = env.unwrapped.num_envs
-    # create runner from rl-games
-    runner = Runner(IsaacAlgoObserver())
-    runner.load(agent_cfg)
+        # set number of actors into agent config
+        agent_cfg["params"]["config"]["num_actors"] = env.unwrapped.num_envs
+        # create runner from rl-games
+        runner = Runner(IsaacAlgoObserver())
+        runner.load(agent_cfg)
 
-    # reset the agent and env
-    runner.reset()
-    # train the agent
-    if args_cli.checkpoint is not None:
-        runner.run({"train": True, "play": False, "sigma": train_sigma, "checkpoint": resume_paths, "load_mode":args_cli.load_mode})
-    else:
-        runner.run({"train": True, "play": False, "sigma": train_sigma, "checkpoint": [], "load_mode": None})
-
-    # close the simulator
-    env.close()
+        # reset the agent and env
+        runner.reset()
+        # train the agent
+        if args_cli.checkpoint is not None:
+            runner.run(
+                {
+                    "train": True,
+                    "play": False,
+                    "sigma": train_sigma,
+                    "checkpoint": resume_paths,
+                    "load_mode": args_cli.load_mode,
+                }
+            )
+        else:
+            runner.run({"train": True, "play": False, "sigma": train_sigma, "checkpoint": [], "load_mode": None})
+    finally:
+        # Flush RecordVideo even if training is interrupted or exits early.
+        try:
+            env.close()
+        except Exception as err:
+            print(f"[WARN] Failed to close environment cleanly; video may be incomplete: {err}")
 
 
 if __name__ == "__main__":
-    # run the main function
-    main()
-    # close sim app
-    simulation_app.close()
+    try:
+        # run the main function
+        main()
+    finally:
+        # close sim app
+        simulation_app.close()

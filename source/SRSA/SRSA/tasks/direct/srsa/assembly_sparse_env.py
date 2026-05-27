@@ -29,6 +29,8 @@ class AssemblySparseEnv(AssemblyRuntimeEnvMixin, AssemblyEnv):
             self._update_srsa_success_extras(success_metrics)
         if hasattr(self, "_update_newt_task_extras"):
             self._update_newt_task_extras()
+        if hasattr(self, "_update_srsa_eval_diagnostics"):
+            self._update_srsa_eval_diagnostics(success_metrics)
 
         # Only log episode success rates at the end of an episode.
         if torch.any(self.reset_buf):
@@ -57,14 +59,19 @@ class AssemblySparseEnv(AssemblyRuntimeEnvMixin, AssemblyEnv):
 
             if self.cfg_task.if_logging_eval:
                 self.success_log = torch.cat([self.success_log, self.ep_succeeded.reshape((self.num_envs, 1))], dim=0)
+                if hasattr(self, "_append_srsa_eval_diagnostics_log"):
+                    self._append_srsa_eval_diagnostics_log(success_metrics)
 
                 if self.success_log.shape[0] >= self.cfg_task.num_eval_trials:
-                    automate_log.write_log_to_hdf5(
-                        self.held_asset_pose_log,
-                        self.fixed_asset_pose_log,
-                        self.success_log,
-                        self.cfg_task.eval_filename,
-                    )
+                    if hasattr(self, "_write_srsa_eval_log_to_hdf5"):
+                        self._write_srsa_eval_log_to_hdf5(self.cfg_task.eval_filename)
+                    else:
+                        automate_log.write_log_to_hdf5(
+                            self.held_asset_pose_log,
+                            self.fixed_asset_pose_log,
+                            self.success_log,
+                            self.cfg_task.eval_filename,
+                        )
                     exit(0)
 
         self.prev_actions = self.actions.clone()

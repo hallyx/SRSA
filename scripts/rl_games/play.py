@@ -86,6 +86,47 @@ from isaaclab_tasks.utils import get_checkpoint_path, load_cfg_from_registry, pa
 import SRSA.tasks  # noqa: F401
 
 
+def _sanitize_video_name(name: str) -> str:
+    sanitized = "".join(char if char.isalnum() or char in ("-", "_") else "_" for char in str(name))
+    return sanitized.strip("_") or "srsa"
+
+
+def _rename_single_recorded_video(
+    video_folder: str | None,
+    name_prefix: str | None,
+    final_name: str | None,
+    started_at: float | None,
+) -> None:
+    """Rename a single RecordVideo output to the assembly id when possible."""
+    if not video_folder or not name_prefix or not final_name or not os.path.isdir(video_folder):
+        return
+
+    candidates = []
+    for filename in os.listdir(video_folder):
+        if not filename.startswith(f"{name_prefix}-") or not filename.endswith(".mp4"):
+            continue
+        path = os.path.join(video_folder, filename)
+        if started_at is not None and os.path.getmtime(path) + 1.0 < started_at:
+            continue
+        candidates.append(filename)
+    if len(candidates) != 1:
+        return
+
+    src_path = os.path.join(video_folder, candidates[0])
+    dst_path = os.path.join(video_folder, f"{final_name}.mp4")
+    if os.path.abspath(src_path) == os.path.abspath(dst_path):
+        return
+
+    if os.path.exists(dst_path):
+        suffix = 1
+        while os.path.exists(os.path.join(video_folder, f"{final_name}_{suffix}.mp4")):
+            suffix += 1
+        dst_path = os.path.join(video_folder, f"{final_name}_{suffix}.mp4")
+
+    os.replace(src_path, dst_path)
+    print(f"[INFO] Saved video as: {dst_path}")
+
+
 def main():
     """Play with RL-Games agent."""
     # parse env configuration
@@ -135,92 +176,110 @@ def main():
         env = multi_agent_to_single_agent(env)
 
     # wrap for video recording
+    video_folder = None
+    video_name_prefix = None
+    video_final_name = None
+    video_started_at = None
     if args_cli.video:
+        assembly_id = os.environ.get("SRSA_ASSEMBLY_ID", "").strip()
+        video_name_prefix = _sanitize_video_name(assembly_id or args_cli.task)
+        video_final_name = _sanitize_video_name(assembly_id) if assembly_id else None
+        video_folder = os.path.join(log_root_path, log_dir, "videos", "play")
+        video_started_at = time.time()
         video_kwargs = {
-            "video_folder": os.path.join(log_root_path, log_dir, "videos", "play"),
+            "video_folder": video_folder,
             "step_trigger": lambda step: step == 0,
             "video_length": args_cli.video_length,
+            "name_prefix": video_name_prefix,
             "disable_logger": True,
         }
-        print("[INFO] Recording videos during training.")
+        print("[INFO] Recording videos during play.")
         print_dict(video_kwargs, nesting=4)
         env = gym.wrappers.RecordVideo(env, **video_kwargs)
 
-    # wrap around environment for rl-games
-    env = RlGamesVecEnvWrapper(env, rl_device, clip_obs, clip_actions)
+    try:
+        # wrap around environment for rl-games
+        env = RlGamesVecEnvWrapper(env, rl_device, clip_obs, clip_actions)
 
-    # register the environment to rl-games registry
-    # note: in agents configuration: environment name must be "rlgpu"
-    vecenv.register(
-        "IsaacRlgWrapper", lambda config_name, num_actors, **kwargs: RlGamesGpuEnv(config_name, num_actors, **kwargs)
-    )
-    env_configurations.register("rlgpu", {"vecenv_type": "IsaacRlgWrapper", "env_creator": lambda **kwargs: env})
+        # register the environment to rl-games registry
+        # note: in agents configuration: environment name must be "rlgpu"
+        vecenv.register(
+            "IsaacRlgWrapper",
+            lambda config_name, num_actors, **kwargs: RlGamesGpuEnv(config_name, num_actors, **kwargs),
+        )
+        env_configurations.register("rlgpu", {"vecenv_type": "IsaacRlgWrapper", "env_creator": lambda **kwargs: env})
 
-    # load previously trained model
-    agent_cfg["params"]["load_checkpoint"] = True
-    agent_cfg["params"]["load_path"] = resume_path
-    print(f"[INFO]: Loading model checkpoint from: {agent_cfg['params']['load_path']}")
+        # load previously trained model
+        agent_cfg["params"]["load_checkpoint"] = True
+        agent_cfg["params"]["load_path"] = resume_path
+        print(f"[INFO]: Loading model checkpoint from: {agent_cfg['params']['load_path']}")
 
-    # set number of actors into agent config
-    agent_cfg["params"]["config"]["num_actors"] = env.unwrapped.num_envs
-    # create runner from rl-games
-    runner = Runner()
-    runner.load(agent_cfg)
-    # obtain the agent from the runner
-    agent: BasePlayer = runner.create_player()
-    agent.restore(resume_path)
-    agent.reset()
+        # set number of actors into agent config
+        agent_cfg["params"]["config"]["num_actors"] = env.unwrapped.num_envs
+        # create runner from rl-games
+        runner = Runner()
+        runner.load(agent_cfg)
+        # obtain the agent from the runner
+        agent: BasePlayer = runner.create_player()
+        agent.restore(resume_path)
+        agent.reset()
 
-    dt = env.unwrapped.physics_dt
+        dt = env.unwrapped.physics_dt
 
-    # reset environment
-    obs = env.reset()
-    if isinstance(obs, dict):
-        obs = obs["obs"]
-    timestep = 0
-    # required: enables the flag for batched observations
-    _ = agent.get_batch_size(obs, 1)
-    # initialize RNN states if used
-    if agent.is_rnn:
-        agent.init_rnn()
-    # simulate environment
-    # note: We simplified the logic in rl-games player.py (:func:`BasePlayer.run()`) function in an
-    #   attempt to have complete control over environment stepping. However, this removes other
-    #   operations such as masking that is used for multi-agent learning by RL-Games.
-    while simulation_app.is_running():
-        start_time = time.time()
-        # run everything in inference mode
-        with torch.inference_mode():
-            # convert obs to agent format
-            obs = agent.obs_to_torch(obs)
-            # agent stepping
-            actions = agent.get_action(obs, is_deterministic=agent.is_deterministic)
-            # env stepping
-            obs, _, dones, _ = env.step(actions)
+        # reset environment
+        obs = env.reset()
+        if isinstance(obs, dict):
+            obs = obs["obs"]
+        timestep = 0
+        # required: enables the flag for batched observations
+        _ = agent.get_batch_size(obs, 1)
+        # initialize RNN states if used
+        if agent.is_rnn:
+            agent.init_rnn()
+        # simulate environment
+        # note: We simplified the logic in rl-games player.py (:func:`BasePlayer.run()`) function in an
+        #   attempt to have complete control over environment stepping. However, this removes other
+        #   operations such as masking that is used for multi-agent learning by RL-Games.
+        while simulation_app.is_running():
+            start_time = time.time()
+            # run everything in inference mode
+            with torch.inference_mode():
+                # convert obs to agent format
+                obs = agent.obs_to_torch(obs)
+                # agent stepping
+                actions = agent.get_action(obs, is_deterministic=agent.is_deterministic)
+                # env stepping
+                obs, _, dones, _ = env.step(actions)
 
-            # perform operations for terminated episodes
-            if len(dones) > 0:
-                # reset rnn state for terminated episodes
-                if agent.is_rnn and agent.states is not None:
-                    for s in agent.states:
-                        s[:, dones, :] = 0.0
-        if args_cli.video:
-            timestep += 1
-            # Exit the play loop after recording one video
-            if timestep == args_cli.video_length:
-                break
+                # perform operations for terminated episodes
+                if len(dones) > 0:
+                    # reset rnn state for terminated episodes
+                    if agent.is_rnn and agent.states is not None:
+                        for s in agent.states:
+                            s[:, dones, :] = 0.0
+            if args_cli.video:
+                timestep += 1
+                # Exit the play loop after recording one video
+                if timestep == args_cli.video_length:
+                    break
 
-        # time delay for real-time evaluation
-        sleep_time = dt - (time.time() - start_time)
-        if args_cli.real_time and sleep_time > 0:
-            time.sleep(sleep_time)
-
-    # close the simulator
-    env.close()
+            # time delay for real-time evaluation
+            sleep_time = dt - (time.time() - start_time)
+            if args_cli.real_time and sleep_time > 0:
+                time.sleep(sleep_time)
+    finally:
+        # Flush RecordVideo even if the episode fails, the run is interrupted, or eval exits early.
+        try:
+            env.close()
+        except Exception as err:
+            print(f"[WARN] Failed to close environment cleanly; video may be incomplete: {err}")
+        _rename_single_recorded_video(video_folder, video_name_prefix, video_final_name, video_started_at)
 
 
 if __name__ == "__main__":
-    # run the main function
-    main()
-    # close sim app
-    simulation_app.close()
+    try:
+        # run the main function
+        main()
+    finally:
+        # close sim app
+        simulation_app.close()

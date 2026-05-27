@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+from isaaclab.envs import ViewerCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.utils import configclass
 from isaaclab_tasks.direct.automate.assembly_env_cfg import AssemblyEnvCfg
@@ -22,12 +23,19 @@ class AssemblyTaskParamEnvCfg(AssemblyEnvCfg):
     default_task_family_name: str = "normal_fit"
     active_task_family_name: str | None = None
     active_task_family_id: int | None = None
+    viewer: ViewerCfg = ViewerCfg(
+        eye=(1.05, -0.85, 0.45),
+        lookat=(0.55, 0.0, 0.18),
+        origin_type="env",
+        env_index=0,
+        resolution=(1280, 720),
+    )
     task_param_obs: bool = False
     task_param_obs_mode: str = "task_vec"
     newt_obs: bool = False
     newt_state_dim: int = 128
     newt_action_dim: int = 16
-    enable_axial_task_param_sampler: bool = True
+    enable_axial_task_param_sampler: bool = False
     axial_task_type_id: int = 0
     axial_scale_range: list[float] | None = None
     axial_fixed_plug_scale: bool = False
@@ -66,9 +74,10 @@ class AssemblyTaskParamEnvCfg(AssemblyEnvCfg):
     srsa_process_success_stable_steps: int = 3
     srsa_process_success_require_official: bool = False
     srsa_process_success_require_no_jam: bool = True
-    enable_flange_force_sensor: bool = True
+    enable_flange_force_sensor: bool = False
     flange_force_sensor_body_name: str = "panda_hand"
     flange_force_sensor_source: str = "held_sensor"
+    flange_force_sensor_obs: bool = True
     flange_force_sensor_obs_frame: str = "socket"
     flange_force_sensor_obs_scale: float = 50.0
     flange_force_sensor_force_threshold: float = 1.0

@@ -55,6 +55,7 @@ depth_base     = 0.015 m
 - 更新 `train.sh` 使用 5 个训练联合模板。
 - 更新 `eval.sh` 循环测试 3 个未见联合组合。
 - 增加轻量 sampler debug 脚本，不启动 Isaac 即可验证参数分布。
+- 增加默认录制相机和 `run_w_id.py --video` 视频录制透传。
 
 待确认或后续可做：
 
@@ -164,6 +165,23 @@ depth_abs_norm
 yaw_requirement_float
 ```
 
+视频相机覆盖：
+
+```text
+SRSA_CAMERA_EYE=1.05,-0.85,0.45
+SRSA_CAMERA_LOOKAT=0.55,0.0,0.18
+SRSA_CAMERA_RESOLUTION=1280,720
+SRSA_CAMERA_ENV_INDEX=0
+```
+
+兼容原始 SRSA checkpoint：
+
+- `Assembly-Sparse-v0` / `Assembly-Direct-v0` 默认保持原始 24 维 policy observation。
+- `SRSA_ENABLE_AXIAL_TASK_PARAM_SAMPLER=1` 才启用 reset-time 轴向任务参数 sampler。
+- `SRSA_ENABLE_FLANGE_FORCE_SENSOR=1` 只启用力/接触诊断采集。
+- `SRSA_FLANGE_FORCE_SENSOR_OBS=1` 才把 3 维 flange force observation 拼到 policy observation；对原始 `00783.pth` 做诊断时用 `0`。
+- 因此原始 `checkpoints/00783.pth` 可直接用 `run_w_id.py --video` 录制；task-param/force-sensor 新模型继续用 `train.sh`、`eval.sh` 中的显式环境变量。
+
 ## 训练脚本
 
 当前训练命令：
@@ -175,6 +193,9 @@ bash train.sh
 当前 `train.sh` 关键配置：
 
 ```bash
+SRSA_ENABLE_AXIAL_TASK_PARAM_SAMPLER=1
+SRSA_ENABLE_FLANGE_FORCE_SENSOR=1
+SRSA_FLANGE_FORCE_SENSOR_OBS=1
 SRSA_AXIAL_FIXED_PLUG_SCALE=1
 SRSA_AXIAL_CLEARANCE_BASE=0.000114
 SRSA_AXIAL_CLEARANCE_DEPTH_TEMPLATES="0.5:0.5;0.5:1.0;1.0:1.0;2.0:1.5;4.0:2.0"
@@ -228,6 +249,105 @@ evaluation_01125_unseen_3.0_1.5.h5
 ```bash
 CHECKPOINT=logs/rl_games/Assembly/your_run/nn/Assembly.pth bash eval.sh
 ```
+
+## 00783 力和卡滞诊断
+
+`--force_diagnostics` 会启用 flange/held-asset 接触力采集，但保持原始 24 维 policy observation，适合直接加载 `checkpoints/00783.pth`：
+
+```bash
+python source/SRSA/SRSA/tasks/direct/srsa/run_w_id.py \
+  --assembly_id 00783 \
+  --checkpoint checkpoints/00783.pth \
+  --sparse \
+  --headless \
+  --log_eval \
+  --num_eval_trials 1024 \
+  --force_diagnostics \
+  --flange_force_source held_sensor \
+  --flange_force_threshold 1.0
+```
+
+生成的 `evaluation_00783.h5` 除原有 `held_asset_pose`、`fixed_asset_pose`、`success` 外，还包含：
+
+```text
+force_max
+force_mean
+force_final
+force_world_final
+force_socket_final
+contact
+contact_steps
+jam
+jam_steps
+lateral_error_max
+lateral_error_final
+depth_fraction_max
+depth_fraction_final
+current_depth_final
+target_depth_final
+orientation_error_final
+yaw_error_final
+keypoint_error_final
+```
+
+## 视频录制
+
+SRSA 默认 viewer 相机已固定到 env0 的装配区域。通过 `run_w_id.py` 加 `--video` 即可录制实验过程视频；底层会自动启用 IsaacLab camera rendering。默认入口兼容原始 24 维 SRSA checkpoint。视频保存不依赖任务成功；脚本会在失败、提前结束或内部 `exit(0)` 时尽量关闭 `RecordVideo` 并 flush 已录制帧。
+
+评估录制示例：
+
+```bash
+python source/SRSA/SRSA/tasks/direct/srsa/run_w_id.py \
+  --assembly_id 00783 \
+  --checkpoint checkpoints/00783.pth \
+  --sparse \
+  --headless \
+  --video \
+  --video_length 300
+```
+
+训练录制示例：
+
+```bash
+python source/SRSA/SRSA/tasks/direct/srsa/run_w_id.py \
+  --assembly_id 01125 \
+  --train \
+  --sparse \
+  --headless \
+  --video \
+  --video_length 300 \
+  --video_interval 2000
+```
+
+可选相机覆盖：
+
+```bash
+--camera_eye 1.05 -0.85 0.45 \
+--camera_lookat 0.55 0.0 0.18 \
+--camera_resolution 1280 720 \
+--camera_env_index 0
+```
+
+视频输出路径遵循 IsaacLab/RL-Games 默认目录：
+
+```text
+logs/rl_games/Assembly/<run>/videos/play
+logs/rl_games/Assembly/<run>/videos/train
+```
+
+如果 checkpoint 直接来自仓库内 `checkpoints/` 目录，当前 `play.py` 会把视频写到：
+
+```text
+videos/play
+```
+
+play 模式视频文件名使用当前 assembly id，例如：
+
+```text
+00783.mp4
+```
+
+train 模式可能会按间隔保存多段视频，文件名前缀同样使用当前 assembly id，例如 `00783-step-2000.mp4`。
 
 ## 轻量参数 Debug
 

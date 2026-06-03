@@ -126,6 +126,12 @@ def main():
     )
     parser.add_argument("--video", action="store_true", help="Record an RGB video from the configured SRSA camera.")
     parser.add_argument(
+        "--video_name",
+        type=str,
+        default=None,
+        help="Override the final play video filename without extension.",
+    )
+    parser.add_argument(
         "--video_length",
         type=int,
         default=200,
@@ -166,6 +172,34 @@ def main():
         type=int,
         default=None,
         help="Environment index used as the recording camera origin.",
+    )
+    parser.add_argument(
+        "--calibrate_socket_camera",
+        action="store_true",
+        help="In play mode, press a key to save the current viewer eye as a socket-relative camera offset.",
+    )
+    parser.add_argument(
+        "--socket_camera_follow",
+        action="store_true",
+        help="In play mode, apply the saved socket-relative camera offset to the current socket position.",
+    )
+    parser.add_argument(
+        "--socket_camera_file",
+        type=str,
+        default="camera_profiles/socket_camera_offset.json",
+        help="JSON file used for socket-relative camera calibration.",
+    )
+    parser.add_argument(
+        "--socket_camera_key",
+        type=str,
+        default="C",
+        help="Keyboard key used to save the socket-relative camera offset during calibration.",
+    )
+    parser.add_argument(
+        "--socket_camera_env_index",
+        type=int,
+        default=None,
+        help="Environment index whose socket is used for socket-relative camera calibration/following.",
     )
     parser.add_argument(
         "--vision_noise",
@@ -308,6 +342,10 @@ def main():
         raise ValueError("No checkpoint provided for evaluation.")
     if not args.train:
         args.no_sbc = True
+    if args.train and (args.calibrate_socket_camera or args.socket_camera_follow):
+        raise ValueError("Socket-relative camera calibration/following is only supported in play/eval mode.")
+    if args.calibrate_socket_camera and args.headless:
+        raise ValueError("Socket camera calibration needs an interactive Omniverse window; remove --headless.")
 
     task = _resolve_task_id(args.sil, args.sparse)
     checkpoint_arg = _resolve_local_file_arg(args.checkpoint)
@@ -400,6 +438,19 @@ def main():
         command.append(f"--video_length={args.video_length}")
         if args.train:
             command.append(f"--video_interval={args.video_interval}")
+        elif args.video_name:
+            command.append(f"--video_name={args.video_name}")
+
+    if not args.train:
+        if args.calibrate_socket_camera:
+            command.append("--calibrate_socket_camera")
+        if args.socket_camera_follow:
+            command.append("--socket_camera_follow")
+        if args.calibrate_socket_camera or args.socket_camera_follow:
+            command.append(f"--socket_camera_file={args.socket_camera_file}")
+            command.append(f"--socket_camera_key={args.socket_camera_key}")
+            if args.socket_camera_env_index is not None:
+                command.append(f"--socket_camera_env_index={args.socket_camera_env_index}")
 
     if args.headless:
         command.append("--headless")

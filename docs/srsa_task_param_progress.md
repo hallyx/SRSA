@@ -349,6 +349,81 @@ play 模式视频文件名使用当前 assembly id，例如：
 
 train 模式可能会按间隔保存多段视频，文件名前缀同样使用当前 assembly id，例如 `00783-step-2000.mp4`。
 
+## Socket 相对相机
+
+当不同 assembly 的 socket 绝对位置变化时，可以先用交互窗口校准一次“相机相对 socket 的偏移”，之后每次推理或录制时自动按当前 socket 位置重建相机位置。
+
+校准：
+
+```bash
+/home/gpuserver/miniconda3/envs/isaac51/bin/python scripts/calibrate_socket_camera.py \
+  --assembly_id 00783 \
+  --checkpoint checkpoints/00783.pth \
+  --device cuda:0
+```
+
+窗口打开后手动调整到想要的视角，按 `C`。脚本会读取当前 socket 世界坐标和 viewer camera 世界坐标，保存：
+
+```text
+camera_profiles/socket_camera_offset.json
+```
+
+之后推理或录制时启用跟随：
+
+```bash
+/home/gpuserver/miniconda3/envs/isaac51/bin/python source/SRSA/SRSA/tasks/direct/srsa/run_w_id.py \
+  --assembly_id 00783 \
+  --checkpoint checkpoints/00783.pth \
+  --sparse \
+  --headless \
+  --video \
+  --video_length 300 \
+  --socket_camera_follow \
+  --socket_camera_file camera_profiles/socket_camera_offset.json
+```
+
+此时相机 eye = 当前 socket 绝对位置 + `eye_offset_from_socket`，lookat 默认指向当前 socket。
+
+## 批量录制尺寸任务
+
+固定同一个 assembly scene，批量录制不同 clearance/depth 尺寸组合：
+
+```bash
+/home/gpuserver/miniconda3/envs/isaac51/bin/python scripts/batch_record_task_sizes.py \
+  --assembly_id 00783 \
+  --checkpoint checkpoints/00783.pth \
+  --device cuda:0 \
+  --video_length 300 \
+  --templates "0.5:0.5;0.5:1.0;1.0:1.0;2.0:1.5;4.0:2.0"
+```
+
+每个 template 表示：
+
+```text
+clearance_multiplier:depth_multiplier
+```
+
+脚本会保持 `SRSA_AXIAL_FIXED_PLUG_SCALE=1`，用同一场景的 plug/socket，在每次录制前设置：
+
+```text
+SRSA_AXIAL_CLEARANCE_BASE=0.000114
+SRSA_AXIAL_DEPTH_BASE=0.015
+SRSA_AXIAL_CLEARANCE_DEPTH_TEMPLATES=<当前 template>
+SRSA_AXIAL_CLEARANCE_JITTER_RATIO=0
+SRSA_AXIAL_DEPTH_JITTER_RATIO=0
+```
+
+视频会自动命名为：
+
+```text
+00783_c0p5_d0p5.mp4
+00783_c0p5_d1.mp4
+00783_c1_d1.mp4
+...
+```
+
+默认启用 `--socket_camera_follow`，使用 `camera_profiles/socket_camera_offset.json` 保持不同尺寸的取景一致。若 checkpoint 需要任务参数 observation，加 `--task_param_obs --task_param_obs_mode task_vec`。
+
 ## 轻量参数 Debug
 
 脚本：

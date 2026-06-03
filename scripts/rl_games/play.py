@@ -14,6 +14,12 @@ from isaaclab.app import AppLauncher
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Play a checkpoint of an RL agent from RL-Games.")
 parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
+parser.add_argument(
+    "--video_name",
+    type=str,
+    default=None,
+    help="Override the final play video filename without extension.",
+)
 parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
 parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
@@ -21,6 +27,36 @@ parser.add_argument(
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint.")
+parser.add_argument(
+    "--calibrate_socket_camera",
+    action="store_true",
+    default=False,
+    help="Enable a keyboard shortcut that saves the current viewer eye as an offset from the socket.",
+)
+parser.add_argument(
+    "--socket_camera_follow",
+    action="store_true",
+    default=False,
+    help="Keep the viewer camera at the saved socket-relative offset.",
+)
+parser.add_argument(
+    "--socket_camera_file",
+    type=str,
+    default="camera_profiles/socket_camera_offset.json",
+    help="JSON file used for socket-relative camera calibration.",
+)
+parser.add_argument(
+    "--socket_camera_key",
+    type=str,
+    default="C",
+    help="Keyboard key used to save the current socket-relative camera offset.",
+)
+parser.add_argument(
+    "--socket_camera_env_index",
+    type=int,
+    default=None,
+    help="Environment index whose socket is used for camera calibration/following.",
+)
 parser.add_argument(
     "--use_pretrained_checkpoint",
     action="store_true",
@@ -84,6 +120,7 @@ import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
 
 import SRSA.tasks  # noqa: F401
+from srsa_socket_camera import SocketRelativeCameraController
 
 
 def _sanitize_video_name(name: str) -> str:
@@ -182,8 +219,9 @@ def main():
     video_started_at = None
     if args_cli.video:
         assembly_id = os.environ.get("SRSA_ASSEMBLY_ID", "").strip()
-        video_name_prefix = _sanitize_video_name(assembly_id or args_cli.task)
-        video_final_name = _sanitize_video_name(assembly_id) if assembly_id else None
+        video_name = (args_cli.video_name or os.environ.get("SRSA_VIDEO_NAME", "")).strip()
+        video_name_prefix = _sanitize_video_name(video_name or assembly_id or args_cli.task)
+        video_final_name = _sanitize_video_name(video_name or assembly_id) if (video_name or assembly_id) else None
         video_folder = os.path.join(log_root_path, log_dir, "videos", "play")
         video_started_at = time.time()
         video_kwargs = {
@@ -196,6 +234,18 @@ def main():
         print("[INFO] Recording videos during play.")
         print_dict(video_kwargs, nesting=4)
         env = gym.wrappers.RecordVideo(env, **video_kwargs)
+
+    socket_camera = None
+    if args_cli.calibrate_socket_camera or args_cli.socket_camera_follow:
+        socket_camera = SocketRelativeCameraController(
+            env,
+            profile_path=args_cli.socket_camera_file,
+            calibrate=args_cli.calibrate_socket_camera,
+            follow=args_cli.socket_camera_follow,
+            capture_key=args_cli.socket_camera_key,
+            env_index=args_cli.socket_camera_env_index,
+            camera_prim_path=env_cfg.viewer.cam_prim_path,
+        )
 
     try:
         # wrap around environment for rl-games
@@ -228,6 +278,8 @@ def main():
 
         # reset environment
         obs = env.reset()
+        if socket_camera is not None:
+            socket_camera.update(force=True)
         if isinstance(obs, dict):
             obs = obs["obs"]
         timestep = 0
@@ -250,6 +302,8 @@ def main():
                 actions = agent.get_action(obs, is_deterministic=agent.is_deterministic)
                 # env stepping
                 obs, _, dones, _ = env.step(actions)
+                if socket_camera is not None:
+                    socket_camera.update()
 
                 # perform operations for terminated episodes
                 if len(dones) > 0:
@@ -269,6 +323,8 @@ def main():
                 time.sleep(sleep_time)
     finally:
         # Flush RecordVideo even if the episode fails, the run is interrupted, or eval exits early.
+        if socket_camera is not None:
+            socket_camera.close()
         try:
             env.close()
         except Exception as err:

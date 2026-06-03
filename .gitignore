@@ -28,3 +28,4 @@ outputs/
 logs/
 
 videos/
+camera_profiles/*.json

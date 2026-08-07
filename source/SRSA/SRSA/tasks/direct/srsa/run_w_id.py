@@ -313,6 +313,11 @@ def main():
         help="Compatibility flag; task-param observations are disabled by default.",
     )
     parser.add_argument(
+        "--no_task_param_geometry_scale",
+        action="store_true",
+        help="Do not apply task-parameter XY scale to the USD assets.",
+    )
+    parser.add_argument(
         "--force_diagnostics",
         action="store_true",
         help="Enable force/contact diagnostic logging without changing the policy observation dimension.",
@@ -361,6 +366,8 @@ def main():
     env["VISION_NOISE_XY_STD"] = str(float(args.vision_noise))
     env["VISION_NOISE_XY_JITTER_STD"] = str(float(args.vision_jitter))
     env["SRSA_TASK_PARAM_OBS"] = "1" if args.task_param_obs and not args.disable_task_param_obs else "0"
+    if args.no_task_param_geometry_scale:
+        env["SRSA_TASK_PARAM_GEOMETRY_SCALE"] = "0"
     if args.force_diagnostics or args.flange_force_obs:
         env["SRSA_ENABLE_FLANGE_FORCE_SENSOR"] = "1"
         env["SRSA_FLANGE_FORCE_SENSOR_OBS"] = "1" if args.flange_force_obs else "0"

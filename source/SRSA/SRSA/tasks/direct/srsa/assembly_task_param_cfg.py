@@ -32,6 +32,7 @@ class AssemblyTaskParamEnvCfg(AssemblyEnvCfg):
     )
     task_param_obs: bool = False
     task_param_obs_mode: str = "task_vec"
+    task_param_geometry_scale: bool = True
     newt_obs: bool = False
     newt_state_dim: int = 128
     newt_action_dim: int = 16
@@ -81,6 +82,17 @@ class AssemblyTaskParamEnvCfg(AssemblyEnvCfg):
     flange_force_sensor_obs_frame: str = "socket"
     flange_force_sensor_obs_scale: float = 50.0
     flange_force_sensor_force_threshold: float = 1.0
+    # V2 semantic interface. The legacy ``flange_force_*`` fields above remain
+    # checkpoint/config aliases for this held-asset net-contact proxy.
+    enable_held_asset_net_contact_force: bool = False
+    held_asset_net_contact_force_obs: bool = True
+    held_asset_net_contact_force_obs_frame: str = "socket"
+    held_asset_net_contact_force_obs_scale: float = 50.0
+    held_asset_net_contact_force_threshold: float = 1.0
+    force_semantics_audit_enabled: bool = False
+    grasp_constraint_mode: str = "physical_grasp"
+    wrist_force_sensor_body_name: str = "force_sensor"
+    wrist_force_sensor_parent_body_name: str = "panda_link7"
     flange_force_sensor: ContactSensorCfg = ContactSensorCfg(
         prim_path="/World/envs/env_.*/Robot/panda_hand",
         update_period=0.0,
@@ -91,5 +103,9 @@ class AssemblyTaskParamEnvCfg(AssemblyEnvCfg):
         prim_path="/World/envs/env_.*/HeldAsset/.*",
         update_period=0.0,
         history_length=1,
+        # FixedAsset is an articulation. Its unique assembly-specific socket
+        # link is the supported filter rigid body; the articulation root and
+        # collision-shape child are not valid GPU filter targets.
+        filter_prim_paths_expr=["/World/envs/env_.*/FixedAsset/a_.*_socket"],
         debug_vis=False,
     )

@@ -84,6 +84,11 @@ def main() -> None:
     parser.add_argument("--no_socket_camera_follow", action="store_true", help="Disable socket-relative camera follow.")
     parser.add_argument("--task_param_obs", action="store_true", help="Pass task parameters to policy observations.")
     parser.add_argument("--task_param_obs_mode", choices=("task_vec", "legacy"), default="task_vec")
+    parser.add_argument(
+        "--no_geometry_scale",
+        action="store_true",
+        help="Keep original USD asset scale while still varying/logging task parameters.",
+    )
     parser.add_argument("--force_diagnostics", action="store_true", help="Enable force/contact diagnostics.")
     parser.add_argument("--flange_force_source", choices=("sensor", "held_sensor", "auto", "asset"), default=None)
     parser.add_argument("--flange_force_threshold", type=float, default=None)
@@ -116,6 +121,8 @@ def main() -> None:
         env["SRSA_AXIAL_CLEARANCE_DEPTH_TEMPLATES"] = template
         env["SRSA_AXIAL_CLEARANCE_JITTER_RATIO"] = str(float(args.clearance_jitter_ratio))
         env["SRSA_AXIAL_DEPTH_JITTER_RATIO"] = str(float(args.depth_jitter_ratio))
+        if args.no_geometry_scale:
+            env["SRSA_TASK_PARAM_GEOMETRY_SCALE"] = "0"
         _append_optional_env(env, "SRSA_AXIAL_INIT_ERROR_XY_RANGE", args.init_error_xy_range)
         _append_optional_env(env, "SRSA_AXIAL_INIT_ERROR_Z_RANGE", args.init_error_z_range)
         _append_optional_env(env, "SRSA_AXIAL_INIT_ERROR_YAW_RANGE", args.init_error_yaw_range)

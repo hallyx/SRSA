@@ -3,8 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import json
 import os
 import re
+import warnings
 
 import gymnasium as gym
 import numpy as np
@@ -27,6 +29,9 @@ from .task_param_utils import (
     resolve_effective_task_params,
     resolve_task_family_config,
 )
+
+
+_LEGACY_FLANGE_FORCE_WARNING_EMITTED = False
 
 
 def _read_bool_env(name: str, default: bool) -> bool:
@@ -218,6 +223,7 @@ class AssemblyRuntimeEnvMixin:
 
     @staticmethod
     def _apply_runtime_task_overrides(cfg) -> None:
+        global _LEGACY_FLANGE_FORCE_WARNING_EMITTED
         AssemblyRuntimeEnvMixin._apply_runtime_camera_overrides(cfg)
         if not hasattr(cfg, "_srsa_base_policy_observation_space"):
             cfg._srsa_base_policy_observation_space = _policy_obs_base_dim(cfg)
@@ -273,6 +279,10 @@ class AssemblyRuntimeEnvMixin:
         )
         task_param_obs_mode = _normalize_task_param_obs_mode(
             os.environ.get("SRSA_TASK_PARAM_OBS_MODE", getattr(cfg, "task_param_obs_mode", "task_vec"))
+        )
+        task_param_geometry_scale = _read_bool_env(
+            "SRSA_TASK_PARAM_GEOMETRY_SCALE",
+            bool(getattr(cfg, "task_param_geometry_scale", True)),
         )
         newt_obs = _read_bool_env("SRSA_NEWT_OBS", bool(getattr(cfg, "newt_obs", False)))
         enable_axial_task_param_sampler = _read_bool_env(
@@ -440,6 +450,7 @@ class AssemblyRuntimeEnvMixin:
         cfg.use_task_param = use_task_param
         cfg.task_param_obs = task_param_obs
         cfg.task_param_obs_mode = task_param_obs_mode
+        cfg.task_param_geometry_scale = task_param_geometry_scale
         cfg.task_param_obs_dim = _task_param_obs_dim(task_param_obs_mode)
         cfg.task_family_config = task_family_config
         cfg.active_task_family_name = resolved_family_name if use_task_family else None
@@ -457,17 +468,38 @@ class AssemblyRuntimeEnvMixin:
                 baseline_insertion_depth=None,
             )
             cfg.runtime_task_param_preview = preview_params
-            AssemblyRuntimeEnvMixin._apply_task_param_cfg_preview(task_cfg, preview_params)
+            AssemblyRuntimeEnvMixin._apply_task_param_cfg_preview(
+                task_cfg, preview_params, geometry_scale=task_param_geometry_scale
+            )
 
         task_cfg.if_sbc = _read_bool_env("SRSA_IF_SBC", bool(task_cfg.if_sbc))
         task_cfg.if_logging_eval = _read_bool_env("SRSA_IF_LOGGING_EVAL", bool(task_cfg.if_logging_eval))
         task_cfg.eval_filename = os.environ.get("SRSA_EVAL_FILENAME", task_cfg.eval_filename)
         task_cfg.num_eval_trials = _read_int_env("SRSA_NUM_EVAL_TRIALS", int(task_cfg.num_eval_trials))
 
-        cfg.enable_flange_force_sensor = _read_bool_env(
+        legacy_force_enabled = _read_bool_env(
             "SRSA_ENABLE_FLANGE_FORCE_SENSOR",
             bool(getattr(cfg, "enable_flange_force_sensor", False)),
         )
+        if (
+            legacy_force_enabled
+            and "SRSA_ENABLE_HELD_ASSET_NET_CONTACT_FORCE" not in os.environ
+            and not _LEGACY_FLANGE_FORCE_WARNING_EMITTED
+        ):
+            warnings.warn(
+                "`flange_force_*` is deprecated: it denotes the HeldAsset net-contact proxy, "
+                "not a flange/wrist F/T sensor. Use Force Semantics V2 names.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            _LEGACY_FLANGE_FORCE_WARNING_EMITTED = True
+        cfg.enable_held_asset_net_contact_force = _read_bool_env(
+            "SRSA_ENABLE_HELD_ASSET_NET_CONTACT_FORCE",
+            bool(getattr(cfg, "enable_held_asset_net_contact_force", False)) or legacy_force_enabled,
+        )
+        # The legacy switch is an observation/checkpoint compatibility alias. It
+        # no longer selects a body contact sensor with flange-wrench semantics.
+        cfg.enable_flange_force_sensor = cfg.enable_held_asset_net_contact_force
         cfg.flange_force_sensor_body_name = os.environ.get(
             "SRSA_FLANGE_FORCE_SENSOR_BODY_NAME",
             str(getattr(cfg, "flange_force_sensor_body_name", "panda_hand")),
@@ -476,32 +508,73 @@ class AssemblyRuntimeEnvMixin:
             "SRSA_FLANGE_FORCE_SENSOR_SOURCE",
             str(getattr(cfg, "flange_force_sensor_source", "held_sensor")),
         )
-        cfg.flange_force_sensor_obs = _read_bool_env(
+        legacy_force_obs = _read_bool_env(
             "SRSA_FLANGE_FORCE_SENSOR_OBS",
             bool(getattr(cfg, "flange_force_sensor_obs", True)),
         )
-        cfg.flange_force_sensor_obs_frame = os.environ.get(
+        cfg.held_asset_net_contact_force_obs = _read_bool_env(
+            "SRSA_HELD_ASSET_NET_CONTACT_FORCE_OBS",
+            bool(getattr(cfg, "held_asset_net_contact_force_obs", legacy_force_obs)),
+        )
+        cfg.flange_force_sensor_obs = cfg.held_asset_net_contact_force_obs
+        legacy_force_frame = os.environ.get(
             "SRSA_FLANGE_FORCE_SENSOR_OBS_FRAME",
             str(getattr(cfg, "flange_force_sensor_obs_frame", "socket")),
         )
-        cfg.flange_force_sensor_obs_scale = _read_float_env(
+        cfg.held_asset_net_contact_force_obs_frame = os.environ.get(
+            "SRSA_HELD_ASSET_NET_CONTACT_FORCE_OBS_FRAME",
+            str(getattr(cfg, "held_asset_net_contact_force_obs_frame", legacy_force_frame)),
+        )
+        cfg.flange_force_sensor_obs_frame = cfg.held_asset_net_contact_force_obs_frame
+        legacy_force_scale = _read_float_env(
             "SRSA_FLANGE_FORCE_SENSOR_OBS_SCALE",
             float(getattr(cfg, "flange_force_sensor_obs_scale", 50.0)),
         )
-        cfg.flange_force_sensor_force_threshold = _read_float_env(
+        cfg.held_asset_net_contact_force_obs_scale = _read_float_env(
+            "SRSA_HELD_ASSET_NET_CONTACT_FORCE_OBS_SCALE",
+            float(getattr(cfg, "held_asset_net_contact_force_obs_scale", legacy_force_scale)),
+        )
+        cfg.flange_force_sensor_obs_scale = cfg.held_asset_net_contact_force_obs_scale
+        legacy_force_threshold = _read_float_env(
             "SRSA_FLANGE_FORCE_SENSOR_FORCE_THRESHOLD",
             float(getattr(cfg, "flange_force_sensor_force_threshold", 1.0)),
+        )
+        cfg.held_asset_net_contact_force_threshold = _read_float_env(
+            "SRSA_HELD_ASSET_NET_CONTACT_FORCE_THRESHOLD",
+            float(getattr(cfg, "held_asset_net_contact_force_threshold", legacy_force_threshold)),
+        )
+        cfg.flange_force_sensor_force_threshold = cfg.held_asset_net_contact_force_threshold
+        cfg.force_semantics_audit_enabled = _read_bool_env(
+            "SRSA_FORCE_SEMANTICS_AUDIT_ENABLED",
+            bool(getattr(cfg, "force_semantics_audit_enabled", False)),
+        )
+        cfg.grasp_constraint_mode = os.environ.get(
+            "SRSA_GRASP_CONSTRAINT_MODE",
+            str(getattr(cfg, "grasp_constraint_mode", "physical_grasp")),
+        ).strip().lower().replace("-", "_")
+        if cfg.grasp_constraint_mode not in {"physical_grasp", "rigid_weld"}:
+            raise ValueError(
+                "SRSA_GRASP_CONSTRAINT_MODE must be physical_grasp or rigid_weld, "
+                f"got {cfg.grasp_constraint_mode!r}."
+            )
+        cfg.wrist_force_sensor_body_name = os.environ.get(
+            "SRSA_WRIST_FORCE_SENSOR_BODY_NAME",
+            str(getattr(cfg, "wrist_force_sensor_body_name", "force_sensor")),
+        )
+        cfg.wrist_force_sensor_parent_body_name = os.environ.get(
+            "SRSA_WRIST_FORCE_SENSOR_PARENT_BODY_NAME",
+            str(getattr(cfg, "wrist_force_sensor_parent_body_name", "panda_link7")),
         )
 
         sensor_cfg = getattr(cfg, "flange_force_sensor", None)
         if sensor_cfg is not None:
             sensor_cfg.prim_path = f"/World/envs/env_.*/Robot/{cfg.flange_force_sensor_body_name}"
-        if cfg.enable_flange_force_sensor:
+        if cfg.enable_held_asset_net_contact_force or cfg.force_semantics_audit_enabled:
             if hasattr(cfg, "robot") and hasattr(cfg.robot, "spawn") and hasattr(cfg.robot.spawn, "activate_contact_sensors"):
                 cfg.robot.spawn.activate_contact_sensors = True
 
         policy_dim = _policy_obs_base_dim(cfg)
-        if cfg.enable_flange_force_sensor and cfg.flange_force_sensor_obs:
+        if cfg.enable_held_asset_net_contact_force and cfg.held_asset_net_contact_force_obs:
             policy_dim += 3
         if cfg.task_param_obs:
             policy_dim += int(cfg.task_param_obs_dim)
@@ -528,7 +601,7 @@ class AssemblyRuntimeEnvMixin:
             cfg.viewer.origin_type = "env"
 
     @staticmethod
-    def _apply_task_param_cfg_preview(task_cfg, effective_params: dict) -> None:
+    def _apply_task_param_cfg_preview(task_cfg, effective_params: dict, *, geometry_scale: bool = True) -> None:
         if hasattr(task_cfg, "held_asset_cfg") and not hasattr(task_cfg, "_srsa_base_plug_diameter"):
             task_cfg._srsa_base_plug_diameter = float(task_cfg.held_asset_cfg.diameter)
         if hasattr(task_cfg, "fixed_asset_cfg") and not hasattr(task_cfg, "_srsa_base_hole_diameter"):
@@ -543,6 +616,9 @@ class AssemblyRuntimeEnvMixin:
             task_cfg.fixed_asset_cfg.diameter = float(effective_params["hole_diameter"])
         if hasattr(task_cfg, "close_error_thresh"):
             task_cfg.close_error_thresh = float(effective_params["success_pos_tol"])
+
+        if not geometry_scale:
+            return
 
         if hasattr(task_cfg, "held_asset") and hasattr(task_cfg.held_asset, "spawn"):
             task_cfg.held_asset.spawn.scale = (plug_scale_xy, plug_scale_xy, 1.0)
@@ -780,8 +856,14 @@ class AssemblyRuntimeEnvMixin:
         super()._setup_scene()
         self._flange_force_sensor = None
         self._held_asset_contact_sensor = None
+        self._rigid_weld_joint_paths = []
+        if str(getattr(self.cfg, "grasp_constraint_mode", "physical_grasp")) == "rigid_weld":
+            self._define_rigid_weld_joints()
         sensor_cfg = getattr(self.cfg, "flange_force_sensor", None)
-        if not getattr(self.cfg, "enable_flange_force_sensor", False):
+        force_runtime_enabled = bool(getattr(self.cfg, "enable_held_asset_net_contact_force", False)) or bool(
+            getattr(self.cfg, "force_semantics_audit_enabled", False)
+        )
+        if not force_runtime_enabled:
             return
         if sensor_cfg is not None:
             self._flange_force_sensor = ContactSensor(sensor_cfg)
@@ -791,14 +873,91 @@ class AssemblyRuntimeEnvMixin:
             self._held_asset_contact_sensor = ContactSensor(held_sensor_cfg)
             self.scene.sensors["held_asset_contact_sensor"] = self._held_asset_contact_sensor
 
+    def _define_rigid_weld_joints(self) -> None:
+        """Author complete enabled plug-to-TCP joints before PhysX builds the scene."""
+        from pxr import Gf, PhysxSchema, Sdf, Usd, UsdPhysics
+        from isaaclab.utils.assets import retrieve_file_path
+
+        stage = self.sim.get_initial_stage()
+        retrieve_file_path(self.cfg_task.plug_grasp_json, download_dir="./")
+        with open(os.path.basename(self.cfg_task.plug_grasp_json), encoding="utf-8") as handle:
+            grasp_dict = json.load(handle)
+        grasp = torch.as_tensor(
+            grasp_dict[f"asset_{self.cfg_task.assembly_id}"], dtype=torch.float32, device="cpu"
+        ).reshape(1, 7)
+        grasp_pos = grasp[:, :3].repeat(int(self.scene.num_envs), 1)
+        grasp_quat = torch.roll(grasp[:, 3:7], -1, 1).repeat(int(self.scene.num_envs), 1)
+        grasp_quat = grasp_quat / torch.linalg.norm(grasp_quat, dim=-1, keepdim=True).clamp_min(1.0e-8)
+        robot_to_gripper_quat = torch.tensor(
+            [[0.0, 1.0, 0.0, 0.0]], dtype=torch.float32
+        ).repeat(int(self.scene.num_envs), 1)
+        palm_to_finger_center = torch.tensor(
+            [[0.0, 0.0, -float(self.cfg_task.palm_to_finger_dist)]], dtype=torch.float32
+        ).repeat(int(self.scene.num_envs), 1)
+        authored_quat, authored_pos = torch_utils.tf_combine(
+            grasp_quat, grasp_pos, robot_to_gripper_quat, palm_to_finger_center
+        )
+        authored_quat = authored_quat / torch.linalg.norm(
+            authored_quat, dim=-1, keepdim=True
+        ).clamp_min(1.0e-8)
+        self._rigid_weld_authored_plug_to_tcp_quat_cpu = authored_quat.clone()
+        self._rigid_weld_authored_plug_to_tcp_pos_cpu = authored_pos.clone()
+        for env_index in range(int(self.scene.num_envs)):
+            env_root = f"/World/envs/env_{env_index}"
+            tcp_path = f"{env_root}/Robot/panda_fingertip_centered"
+            held_root = stage.GetPrimAtPath(f"{env_root}/HeldAsset")
+            if not held_root.IsValid():
+                raise RuntimeError(f"rigid_weld HeldAsset root is missing: {held_root.GetPath()}")
+            rigid_paths = [
+                str(prim.GetPath())
+                for prim in Usd.PrimRange(held_root)
+                if prim.HasAPI(UsdPhysics.RigidBodyAPI)
+            ]
+            if len(rigid_paths) != 1:
+                raise RuntimeError(
+                    "rigid_weld requires exactly one HeldAsset rigid body per environment; "
+                    f"env={env_index} paths={rigid_paths}."
+                )
+            if not stage.GetPrimAtPath(tcp_path).HasAPI(UsdPhysics.RigidBodyAPI):
+                raise RuntimeError(f"rigid_weld TCP body is missing or non-rigid: {tcp_path}")
+
+            # PhysX's rigid-joint reference setups explicitly set CFM to zero.
+            # Scope this hard-constraint setting to rigid_weld only; the normal
+            # physical-grasp scene and all contact/collision properties remain
+            # untouched.
+            PhysxSchema.PhysxRigidBodyAPI.Apply(stage.GetPrimAtPath(tcp_path)).GetCfmScaleAttr().Set(0.0)
+            PhysxSchema.PhysxRigidBodyAPI.Apply(stage.GetPrimAtPath(rigid_paths[0])).GetCfmScaleAttr().Set(0.0)
+
+            joint_path = f"{env_root}/ForceSemanticsAudit/plug_to_tcp_fixed_joint"
+            joint = UsdPhysics.FixedJoint.Define(stage, joint_path)
+            # Author the zero-DOF link before PhysX builds the reduced-coordinate
+            # articulation. This is the only fixed-joint form that can provide
+            # an exact rigid counterfactual under contact load.
+            joint.CreateExcludeFromArticulationAttr(False)
+            joint.CreateBody0Rel().SetTargets([Sdf.Path(tcp_path)])
+            joint.CreateBody1Rel().SetTargets([Sdf.Path(rigid_paths[0])])
+            joint.CreateLocalPos0Attr(Gf.Vec3f(0.0, 0.0, 0.0))
+            joint.CreateLocalRot0Attr(Gf.Quatf(1.0, 0.0, 0.0, 0.0))
+            pos1 = authored_pos[env_index].tolist()
+            quat1 = authored_quat[env_index].tolist()
+            joint.CreateLocalPos1Attr(Gf.Vec3f(*pos1))
+            joint.CreateLocalRot1Attr(Gf.Quatf(quat1[0], quat1[1], quat1[2], quat1[3]))
+            joint.CreateJointEnabledAttr(True)
+            self._rigid_weld_joint_paths.append(joint_path)
+
     def _init_post_super_runtime(self) -> None:
         if hasattr(self, "gripper_open_width"):
             self._srsa_base_gripper_open_width = float(self.gripper_open_width)
+            plug_scale_xy = (
+                self.current_plug_scale_xy
+                if bool(getattr(self, "task_param_geometry_scale", True))
+                else torch.ones_like(self.current_plug_scale_xy)
+            )
             self.current_gripper_open_width = (
                 torch.full(
                     (self.num_envs,), self._srsa_base_gripper_open_width, dtype=torch.float32, device=self.device
                 )
-                * self.current_plug_scale_xy
+                * plug_scale_xy
             )
 
     def _configure_runtime_gym_spaces(self) -> None:
@@ -833,8 +992,8 @@ class AssemblyRuntimeEnvMixin:
             return
 
         policy_dim = _policy_obs_base_dim(self.cfg)
-        if bool(getattr(self.cfg, "enable_flange_force_sensor", False)) and bool(
-            getattr(self.cfg, "flange_force_sensor_obs", True)
+        if bool(getattr(self.cfg, "enable_held_asset_net_contact_force", False)) and bool(
+            getattr(self.cfg, "held_asset_net_contact_force_obs", True)
         ):
             policy_dim += 3
         if bool(getattr(self.cfg, "task_param_obs", False)):
@@ -852,22 +1011,140 @@ class AssemblyRuntimeEnvMixin:
         self.observation_space = gym.vector.utils.batch_space(self.single_observation_space["policy"], self.num_envs)
 
     def _init_flange_force_sensor_runtime(self) -> None:
-        self.enable_flange_force_sensor = bool(getattr(self.cfg, "enable_flange_force_sensor", False))
-        self.flange_force_sensor_source = str(getattr(self.cfg, "flange_force_sensor_source", "held_sensor")).lower()
-        self.flange_force_sensor_obs = bool(getattr(self.cfg, "flange_force_sensor_obs", True))
-        self.flange_force_sensor_obs_frame = str(getattr(self.cfg, "flange_force_sensor_obs_frame", "socket")).lower()
-        self.flange_force_sensor_obs_scale = float(getattr(self.cfg, "flange_force_sensor_obs_scale", 50.0))
-        self.flange_force_sensor_force_threshold = float(
-            getattr(self.cfg, "flange_force_sensor_force_threshold", 1.0)
+        """Initialize Force Semantics V2 tensors and legacy checkpoint aliases."""
+        self.enable_held_asset_net_contact_force = bool(
+            getattr(self.cfg, "enable_held_asset_net_contact_force", False)
         )
+        self.force_semantics_audit_enabled = bool(getattr(self.cfg, "force_semantics_audit_enabled", False))
+        self.force_semantics_runtime_enabled = (
+            self.enable_held_asset_net_contact_force or self.force_semantics_audit_enabled
+        )
+        self.held_asset_net_contact_force_obs_enabled = bool(
+            getattr(self.cfg, "held_asset_net_contact_force_obs", True)
+        )
+        self.held_asset_net_contact_force_obs_frame = str(
+            getattr(self.cfg, "held_asset_net_contact_force_obs_frame", "socket")
+        ).lower()
+        if self.held_asset_net_contact_force_obs_frame not in {"world", "socket"}:
+            raise ValueError(
+                "held_asset_net_contact_force_obs_frame must be world or socket, "
+                f"got {self.held_asset_net_contact_force_obs_frame!r}."
+            )
+        self.held_asset_net_contact_force_obs_scale = float(
+            getattr(self.cfg, "held_asset_net_contact_force_obs_scale", 50.0)
+        )
+        self.held_asset_net_contact_force_threshold = float(
+            getattr(self.cfg, "held_asset_net_contact_force_threshold", 1.0)
+        )
+        self.grasp_constraint_mode = str(getattr(self.cfg, "grasp_constraint_mode", "physical_grasp"))
+        self.rigid_weld_enabled = self.grasp_constraint_mode == "rigid_weld"
+
         self.flange_body_contact_force_world = torch.zeros((self.num_envs, 3), device=self.device)
         self.held_sensor_contact_force_world = torch.zeros((self.num_envs, 3), device=self.device)
         self.held_asset_contact_force_world = torch.zeros((self.num_envs, 3), device=self.device)
-        self.flange_force_world = torch.zeros((self.num_envs, 3), device=self.device)
-        self.flange_force_socket = torch.zeros((self.num_envs, 3), device=self.device)
-        self.flange_force_obs = torch.zeros((self.num_envs, 3), device=self.device)
-        self.flange_force_norm = torch.zeros((self.num_envs, 1), device=self.device)
-        self.flange_force_flag = torch.zeros((self.num_envs, 1), dtype=torch.bool, device=self.device)
+        self.held_asset_net_contact_force_world = torch.zeros((self.num_envs, 3), device=self.device)
+        self.held_asset_net_contact_force_socket = torch.zeros((self.num_envs, 3), device=self.device)
+        self.held_asset_net_contact_force_obs = torch.zeros((self.num_envs, 3), device=self.device)
+        self.held_asset_net_contact_force_norm = torch.zeros((self.num_envs, 1), device=self.device)
+        self.held_asset_net_contact_force_flag = torch.zeros(
+            (self.num_envs, 1), dtype=torch.bool, device=self.device
+        )
+        self.plug_socket_contact_force_world = torch.zeros((self.num_envs, 3), device=self.device)
+        self.plug_socket_contact_force_socket = torch.zeros((self.num_envs, 3), device=self.device)
+        self.held_asset_non_socket_contact_residual_world = torch.zeros((self.num_envs, 3), device=self.device)
+
+        # PhysX preserves the unmodified incoming-joint result at the parent
+        # link origin/frame.  The sensor/world/TCP values below are derived by
+        # explicit spatial-wrench transforms.
+        self.wrist_joint_reaction_wrench_raw_parent = torch.zeros((self.num_envs, 6), device=self.device)
+        self.wrist_joint_reaction_wrench_sensor = torch.zeros((self.num_envs, 6), device=self.device)
+        self.wrist_joint_reaction_wrench_world = torch.zeros((self.num_envs, 6), device=self.device)
+        self.wrist_joint_reaction_wrench_tcp = torch.zeros((self.num_envs, 6), device=self.device)
+        self.wrist_joint_reaction_wrench_tare_sensor = torch.zeros((self.num_envs, 6), device=self.device)
+        self.wrist_joint_reaction_wrench_tared_sensor = torch.zeros((self.num_envs, 6), device=self.device)
+        self.wrist_joint_reaction_wrench_tared_world = torch.zeros((self.num_envs, 6), device=self.device)
+        self.wrist_joint_reaction_wrench_tared_tcp = torch.zeros((self.num_envs, 6), device=self.device)
+        self.wrist_force_sensor_pos_world = torch.zeros((self.num_envs, 3), device=self.device)
+        self.wrist_force_sensor_parent_pos_world = torch.zeros((self.num_envs, 3), device=self.device)
+        self.wrist_tare_plug_socket_force_norm = torch.zeros((self.num_envs, 1), device=self.device)
+        self.wrist_tare_valid = torch.zeros((self.num_envs, 1), dtype=torch.bool, device=self.device)
+
+        self.plug_tcp_rel_pos = torch.zeros((self.num_envs, 3), device=self.device)
+        self.plug_tcp_rel_quat = torch.zeros((self.num_envs, 4), device=self.device)
+        self.plug_tcp_rel_quat[:, 0] = 1.0
+        self.plug_tcp_rel_pos_initial = torch.zeros((self.num_envs, 3), device=self.device)
+        self.plug_tcp_rel_quat_initial = self.plug_tcp_rel_quat.clone()
+        self.plug_tcp_rel_linvel = torch.zeros((self.num_envs, 3), device=self.device)
+        self.plug_tcp_rel_angvel = torch.zeros((self.num_envs, 3), device=self.device)
+        self.plug_tcp_translation_drift = torch.zeros((self.num_envs, 1), device=self.device)
+        self.plug_tcp_rotation_drift = torch.zeros((self.num_envs, 1), device=self.device)
+        self._rigid_weld_desired_held_pos = torch.zeros((self.num_envs, 3), device=self.device)
+        self._rigid_weld_desired_held_quat = torch.zeros((self.num_envs, 4), device=self.device)
+        self._rigid_weld_desired_held_quat[:, 0] = 1.0
+        self._plug_tcp_rel_prev_pos = self.plug_tcp_rel_pos.clone()
+        self._plug_tcp_rel_prev_quat = self.plug_tcp_rel_quat.clone()
+        self._plug_tcp_rel_prev_valid = torch.zeros((self.num_envs, 1), dtype=torch.bool, device=self.device)
+        self.force_semantics_sample_index = torch.zeros((self.num_envs, 1), dtype=torch.int64, device=self.device)
+        self.force_semantics_sample_time_s = torch.zeros((self.num_envs, 1), device=self.device)
+
+        self._wrist_force_sensor_body_idx = self._unique_robot_body_index(
+            str(getattr(self.cfg, "wrist_force_sensor_body_name", "force_sensor"))
+        )
+        self._wrist_force_sensor_parent_body_idx = self._unique_robot_body_index(
+            str(getattr(self.cfg, "wrist_force_sensor_parent_body_name", "panda_link7"))
+        )
+        if self.rigid_weld_enabled:
+            self._configure_rigid_weld_joints()
+
+        # Deprecated aliases remain tensor-identical for frozen 14D/17D checkpoints.
+        self.enable_flange_force_sensor = self.enable_held_asset_net_contact_force
+        self.flange_force_sensor_source = "held_asset_net_contact"
+        self.flange_force_sensor_obs = self.held_asset_net_contact_force_obs_enabled
+        self.flange_force_sensor_obs_frame = self.held_asset_net_contact_force_obs_frame
+        self.flange_force_sensor_obs_scale = self.held_asset_net_contact_force_obs_scale
+        self.flange_force_sensor_force_threshold = self.held_asset_net_contact_force_threshold
+        self.flange_force_world = self.held_asset_net_contact_force_world
+        self.flange_force_socket = self.held_asset_net_contact_force_socket
+        self.flange_force_obs = self.held_asset_net_contact_force_obs
+        self.flange_force_norm = self.held_asset_net_contact_force_norm
+        self.flange_force_flag = self.held_asset_net_contact_force_flag
+
+    def _unique_robot_body_index(self, body_name: str) -> int:
+        matches = [index for index, name in enumerate(self._robot.body_names) if name == body_name]
+        if len(matches) != 1:
+            raise RuntimeError(
+                f"Force Semantics V2 requires exactly one robot body named {body_name!r}; matches={matches}, "
+                f"body_names={self._robot.body_names}."
+            )
+        return matches[0]
+
+    def _configure_rigid_weld_joints(self) -> None:
+        from pxr import Gf, UsdPhysics
+
+        if len(getattr(self, "_rigid_weld_joint_paths", [])) != self.num_envs:
+            raise RuntimeError(
+                "rigid_weld joint authoring count mismatch: "
+                f"expected={self.num_envs} actual={len(getattr(self, '_rigid_weld_joint_paths', []))}."
+            )
+        local_quat, local_pos = torch_utils.tf_combine(
+            self.plug_grasp_quat_local,
+            self.plug_grasp_pos_local,
+            self.robot_to_gripper_quat,
+            self.palm_to_finger_center,
+        )
+        local_quat = local_quat / torch.linalg.norm(local_quat, dim=-1, keepdim=True).clamp_min(1.0e-8)
+        self._rigid_weld_plug_to_tcp_quat = local_quat.detach().clone()
+        self._rigid_weld_plug_to_tcp_pos = local_pos.detach().clone()
+        authored_pos = self._rigid_weld_authored_plug_to_tcp_pos_cpu.to(local_pos.device)
+        authored_quat = self._rigid_weld_authored_plug_to_tcp_quat_cpu.to(local_quat.device)
+        if not torch.allclose(local_pos, authored_pos, atol=1.0e-7, rtol=0.0):
+            raise RuntimeError("rigid_weld pre-physics authored position frame disagrees with runtime grasp pose")
+        quat_alignment = torch.abs(torch.sum(local_quat * authored_quat, dim=-1))
+        if not torch.all(quat_alignment > 1.0 - 1.0e-6):
+            raise RuntimeError("rigid_weld pre-physics authored rotation frame disagrees with runtime grasp pose")
+        self.rigid_weld_joint_active = torch.ones(
+            (self.num_envs, 1), dtype=torch.bool, device=self.device
+        )
 
     def _compute_intermediate_values(self, dt):
         super()._compute_intermediate_values(dt)
@@ -877,13 +1154,28 @@ class AssemblyRuntimeEnvMixin:
         self.flange_body_contact_force_world.zero_()
         self.held_sensor_contact_force_world.zero_()
         self.held_asset_contact_force_world.zero_()
-        self.flange_force_world.zero_()
-        self.flange_force_socket.zero_()
-        self.flange_force_obs.zero_()
-        self.flange_force_norm.zero_()
-        self.flange_force_flag.zero_()
+        self.held_asset_net_contact_force_world.zero_()
+        self.held_asset_net_contact_force_socket.zero_()
+        self.held_asset_net_contact_force_obs.zero_()
+        self.held_asset_net_contact_force_norm.zero_()
+        self.held_asset_net_contact_force_flag.zero_()
+        self.plug_socket_contact_force_world.zero_()
+        self.plug_socket_contact_force_socket.zero_()
+        self.held_asset_non_socket_contact_residual_world.zero_()
+        self.wrist_joint_reaction_wrench_raw_parent.zero_()
+        self.wrist_joint_reaction_wrench_sensor.zero_()
+        self.wrist_joint_reaction_wrench_world.zero_()
+        self.wrist_joint_reaction_wrench_tcp.zero_()
+        self.wrist_joint_reaction_wrench_tared_sensor.zero_()
+        self.wrist_joint_reaction_wrench_tared_world.zero_()
+        self.wrist_joint_reaction_wrench_tared_tcp.zero_()
 
-        if not self.enable_flange_force_sensor:
+        self._update_plug_tcp_relative_state(self.physics_dt)
+        self.force_semantics_sample_index += 1
+        sim_timestamp = float(getattr(self._robot._data, "_sim_timestamp", 0.0))
+        self.force_semantics_sample_time_s.fill_(sim_timestamp)
+
+        if not self.force_semantics_runtime_enabled:
             return
 
         if getattr(self, "_flange_force_sensor", None) is not None:
@@ -894,39 +1186,154 @@ class AssemblyRuntimeEnvMixin:
             self.held_sensor_contact_force_world[:] = self._coerce_contact_force_tensor(
                 self._held_asset_contact_sensor.data.net_forces_w
             )
+            force_matrix = getattr(self._held_asset_contact_sensor.data, "force_matrix_w", None)
+            if force_matrix is not None:
+                self.plug_socket_contact_force_world[:] = self._coerce_contact_force_tensor(force_matrix)
         self.held_asset_contact_force_world[:] = self._get_asset_net_contact_force(getattr(self, "_held_asset", None))
 
-        if self.flange_force_sensor_source == "sensor":
-            net_forces = self.flange_body_contact_force_world
-        elif self.flange_force_sensor_source == "held_sensor":
-            net_forces = self.held_sensor_contact_force_world
-        elif self.flange_force_sensor_source == "auto":
-            body_norm = torch.linalg.norm(self.flange_body_contact_force_world, dim=-1, keepdim=True)
-            held_sensor_norm = torch.linalg.norm(self.held_sensor_contact_force_world, dim=-1, keepdim=True)
-            net_forces = torch.where(
-                body_norm > 1.0e-8,
-                self.flange_body_contact_force_world,
-                torch.where(
-                    held_sensor_norm > 1.0e-8,
-                    self.held_sensor_contact_force_world,
-                    self.held_asset_contact_force_world,
-                ),
+        # This is deliberately the exact F1 ``held_sensor`` source.  Do not
+        # silently fall back to another source at zero magnitude: zero can be a
+        # physically meaningful cancellation and legacy 17D values must remain
+        # bitwise-equivalent apart from ordinary float execution noise.
+        net_forces = self.held_sensor_contact_force_world
+        self.held_asset_net_contact_force_world[:] = net_forces
+        self.held_asset_non_socket_contact_residual_world[:] = (
+            self.held_asset_net_contact_force_world - self.plug_socket_contact_force_world
+        )
+        if hasattr(self, "fixed_quat"):
+            fixed_quat_inv = quat_conjugate(self.fixed_quat)
+            self.held_asset_net_contact_force_socket[:] = quat_apply(fixed_quat_inv, net_forces)
+            self.plug_socket_contact_force_socket[:] = quat_apply(
+                fixed_quat_inv, self.plug_socket_contact_force_world
             )
         else:
-            net_forces = self.held_asset_contact_force_world
+            self.held_asset_net_contact_force_socket[:] = net_forces
+            self.plug_socket_contact_force_socket[:] = self.plug_socket_contact_force_world
+        if self.held_asset_net_contact_force_obs_frame == "world":
+            obs_force = self.held_asset_net_contact_force_world
+        else:
+            obs_force = self.held_asset_net_contact_force_socket
+        self.held_asset_net_contact_force_obs[:] = obs_force / max(
+            self.held_asset_net_contact_force_obs_scale, 1.0e-6
+        )
+        self.held_asset_net_contact_force_norm[:, 0] = torch.linalg.norm(
+            self.held_asset_net_contact_force_world, dim=-1
+        )
+        self.held_asset_net_contact_force_flag[:, 0] = (
+            self.held_asset_net_contact_force_norm[:, 0] > self.held_asset_net_contact_force_threshold
+        )
+        self._update_wrist_joint_reaction_wrench()
 
-        self.flange_force_world[:] = net_forces
-        if hasattr(self, "fixed_quat"):
-            self.flange_force_socket[:] = quat_apply(quat_conjugate(self.fixed_quat), net_forces)
-        else:
-            self.flange_force_socket[:] = net_forces
-        if self.flange_force_sensor_obs_frame == "world":
-            obs_force = self.flange_force_world
-        else:
-            obs_force = self.flange_force_socket
-        self.flange_force_obs[:] = obs_force / max(self.flange_force_sensor_obs_scale, 1.0e-6)
-        self.flange_force_norm[:, 0] = torch.linalg.norm(self.flange_force_world, dim=-1)
-        self.flange_force_flag[:, 0] = self.flange_force_norm[:, 0] > self.flange_force_sensor_force_threshold
+    def _update_plug_tcp_relative_state(self, dt: float) -> None:
+        tcp_quat_inv, tcp_pos_inv = torch_utils.tf_inverse(
+            self.fingertip_midpoint_quat, self.fingertip_midpoint_pos
+        )
+        rel_quat, rel_pos = torch_utils.tf_combine(
+            tcp_quat_inv, tcp_pos_inv, self.held_quat, self.held_pos
+        )
+        continuity_sign = torch.where(
+            torch.sum(rel_quat * self._plug_tcp_rel_prev_quat, dim=-1, keepdim=True) < 0.0,
+            -torch.ones_like(rel_quat[:, :1]),
+            torch.ones_like(rel_quat[:, :1]),
+        )
+        rel_quat = rel_quat * continuity_sign
+        valid = self._plug_tcp_rel_prev_valid
+        self.plug_tcp_rel_linvel[:] = torch.where(
+            valid,
+            (rel_pos - self._plug_tcp_rel_prev_pos) / max(float(dt), 1.0e-9),
+            torch.zeros_like(rel_pos),
+        )
+        delta_quat = torch_utils.quat_mul(rel_quat, quat_conjugate(self._plug_tcp_rel_prev_quat))
+        delta_quat = torch.where(delta_quat[:, :1] < 0.0, -delta_quat, delta_quat)
+        delta_vector_norm = torch.linalg.norm(delta_quat[:, 1:4], dim=-1, keepdim=True)
+        delta_angle = 2.0 * torch.atan2(delta_vector_norm, delta_quat[:, :1].clamp_min(1.0e-9))
+        delta_axis = delta_quat[:, 1:4] / delta_vector_norm.clamp_min(1.0e-9)
+        angular_velocity = delta_axis * delta_angle / max(float(dt), 1.0e-9)
+        self.plug_tcp_rel_angvel[:] = torch.where(valid, angular_velocity, torch.zeros_like(angular_velocity))
+        self.plug_tcp_rel_pos[:] = rel_pos
+        self.plug_tcp_rel_quat[:] = rel_quat
+        self._plug_tcp_rel_prev_pos[:] = rel_pos
+        self._plug_tcp_rel_prev_quat[:] = rel_quat
+        self._plug_tcp_rel_prev_valid[:] = True
+        self.plug_tcp_translation_drift[:, 0] = torch.linalg.norm(
+            rel_pos - self.plug_tcp_rel_pos_initial, dim=-1
+        )
+        drift_quat = torch_utils.quat_mul(rel_quat, quat_conjugate(self.plug_tcp_rel_quat_initial))
+        drift_quat = torch.where(drift_quat[:, :1] < 0.0, -drift_quat, drift_quat)
+        self.plug_tcp_rotation_drift[:, 0] = 2.0 * torch.atan2(
+            torch.linalg.norm(drift_quat[:, 1:4], dim=-1), drift_quat[:, 0].clamp_min(1.0e-9)
+        )
+
+    def _update_wrist_joint_reaction_wrench(self) -> None:
+        raw = self._robot.root_physx_view.get_link_incoming_joint_force()[:, self._wrist_force_sensor_body_idx]
+        raw = raw.to(device=self.device, dtype=torch.float32).reshape(self.num_envs, 6)
+        self.wrist_joint_reaction_wrench_raw_parent[:] = raw
+        parent_quat = self._robot.data.body_quat_w[:, self._wrist_force_sensor_parent_body_idx]
+        parent_pos = (
+            self._robot.data.body_pos_w[:, self._wrist_force_sensor_parent_body_idx] - self.scene.env_origins
+        )
+        sensor_quat = self._robot.data.body_quat_w[:, self._wrist_force_sensor_body_idx]
+        sensor_pos = self._robot.data.body_pos_w[:, self._wrist_force_sensor_body_idx] - self.scene.env_origins
+        self.wrist_force_sensor_parent_pos_world[:] = parent_pos
+        self.wrist_force_sensor_pos_world[:] = sensor_pos
+        world_at_parent = self._wrench_frame_to_world(raw, parent_quat)
+        self.wrist_joint_reaction_wrench_world[:] = self._shift_wrench_world(
+            world_at_parent, parent_pos, sensor_pos
+        )
+        sensor_quat_inv = quat_conjugate(sensor_quat)
+        self.wrist_joint_reaction_wrench_sensor[:] = torch.cat(
+            [
+                quat_apply(sensor_quat_inv, self.wrist_joint_reaction_wrench_world[:, :3]),
+                quat_apply(sensor_quat_inv, self.wrist_joint_reaction_wrench_world[:, 3:6]),
+            ],
+            dim=-1,
+        )
+        self.wrist_joint_reaction_wrench_tared_sensor[:] = (
+            self.wrist_joint_reaction_wrench_sensor - self.wrist_joint_reaction_wrench_tare_sensor
+        )
+        self.wrist_joint_reaction_wrench_tared_world[:] = self._wrench_frame_to_world(
+            self.wrist_joint_reaction_wrench_tared_sensor, sensor_quat
+        )
+        self.wrist_joint_reaction_wrench_tcp[:] = self._wrench_world_to_tcp(
+            self.wrist_joint_reaction_wrench_world, sensor_pos
+        )
+        self.wrist_joint_reaction_wrench_tared_tcp[:] = self._wrench_world_to_tcp(
+            self.wrist_joint_reaction_wrench_tared_world, sensor_pos
+        )
+
+    @staticmethod
+    def _wrench_frame_to_world(wrench_frame: torch.Tensor, frame_quat_world: torch.Tensor) -> torch.Tensor:
+        return torch.cat(
+            [
+                quat_apply(frame_quat_world, wrench_frame[:, :3]),
+                quat_apply(frame_quat_world, wrench_frame[:, 3:6]),
+            ],
+            dim=-1,
+        )
+
+    @staticmethod
+    def _shift_wrench_world(
+        wrench_world: torch.Tensor, source_pos_world: torch.Tensor, target_pos_world: torch.Tensor
+    ) -> torch.Tensor:
+        force_world = wrench_world[:, :3]
+        torque_at_target_world = wrench_world[:, 3:6] + torch.linalg.cross(
+            source_pos_world - target_pos_world, force_world, dim=-1
+        )
+        return torch.cat([force_world, torque_at_target_world], dim=-1)
+
+    def _wrench_world_to_tcp(self, wrench_world: torch.Tensor, source_pos_world: torch.Tensor) -> torch.Tensor:
+        force_world = wrench_world[:, :3]
+        wrench_at_tcp_world = self._shift_wrench_world(
+            wrench_world, source_pos_world, self.fingertip_midpoint_pos
+        )
+        tcp_quat_inv = quat_conjugate(self.fingertip_midpoint_quat)
+        return torch.cat(
+            [
+                quat_apply(tcp_quat_inv, force_world),
+                quat_apply(tcp_quat_inv, wrench_at_tcp_world[:, 3:6]),
+            ],
+            dim=-1,
+        )
 
     def _coerce_contact_force_tensor(self, net_forces) -> torch.Tensor:
         if not isinstance(net_forces, torch.Tensor):
@@ -934,9 +1341,7 @@ class AssemblyRuntimeEnvMixin:
         else:
             net_forces = net_forces.to(device=self.device, dtype=torch.float32)
 
-        if net_forces.ndim == 4:
-            net_forces = net_forces[:, -1]
-        if net_forces.ndim == 3:
+        while net_forces.ndim > 2 and net_forces.shape[-1] == 3:
             net_forces = net_forces.sum(dim=1)
         if net_forces.ndim != 2 or net_forces.shape[-1] != 3:
             return torch.zeros((self.num_envs, 3), device=self.device)
@@ -956,6 +1361,7 @@ class AssemblyRuntimeEnvMixin:
         self.use_task_param = bool(getattr(self.cfg, "use_task_param", False))
         self.task_param_obs = bool(getattr(self.cfg, "task_param_obs", False))
         self.task_param_obs_mode = _normalize_task_param_obs_mode(getattr(self.cfg, "task_param_obs_mode", "task_vec"))
+        self.task_param_geometry_scale = bool(getattr(self.cfg, "task_param_geometry_scale", True))
         self.enable_axial_task_param_sampler = bool(getattr(self.cfg, "enable_axial_task_param_sampler", False))
         self.enable_task_param = bool(self.use_task_param or self.task_param_obs or self.enable_axial_task_param_sampler)
         self.current_task_param_tensor = None
@@ -1129,6 +1535,52 @@ class AssemblyRuntimeEnvMixin:
         if not hasattr(self, "extras") or not isinstance(self.extras, dict):
             return
 
+        self.extras["held_asset_net_contact_force_world"] = (
+            self.held_asset_net_contact_force_world.detach().clone()
+        )
+        self.extras["held_asset_net_contact_force_socket"] = (
+            self.held_asset_net_contact_force_socket.detach().clone()
+        )
+        self.extras["held_asset_net_contact_force_obs"] = self.held_asset_net_contact_force_obs.detach().clone()
+        self.extras["held_asset_net_contact_force_norm"] = self.held_asset_net_contact_force_norm.detach().clone()
+        self.extras["held_asset_net_contact_force_flag"] = self.held_asset_net_contact_force_flag.detach().clone()
+        self.extras["plug_socket_contact_force_world"] = self.plug_socket_contact_force_world.detach().clone()
+        self.extras["plug_socket_contact_force_socket"] = self.plug_socket_contact_force_socket.detach().clone()
+        self.extras["held_asset_non_socket_contact_residual_world"] = (
+            self.held_asset_non_socket_contact_residual_world.detach().clone()
+        )
+        self.extras["wrist_joint_reaction_wrench_raw_parent"] = (
+            self.wrist_joint_reaction_wrench_raw_parent.detach().clone()
+        )
+        self.extras["wrist_joint_reaction_wrench_sensor"] = (
+            self.wrist_joint_reaction_wrench_sensor.detach().clone()
+        )
+        self.extras["wrist_joint_reaction_wrench_world"] = self.wrist_joint_reaction_wrench_world.detach().clone()
+        self.extras["wrist_joint_reaction_wrench_tcp"] = self.wrist_joint_reaction_wrench_tcp.detach().clone()
+        self.extras["wrist_joint_reaction_wrench_tare_sensor"] = (
+            self.wrist_joint_reaction_wrench_tare_sensor.detach().clone()
+        )
+        self.extras["wrist_joint_reaction_wrench_tared_sensor"] = (
+            self.wrist_joint_reaction_wrench_tared_sensor.detach().clone()
+        )
+        self.extras["wrist_joint_reaction_wrench_tared_world"] = (
+            self.wrist_joint_reaction_wrench_tared_world.detach().clone()
+        )
+        self.extras["wrist_joint_reaction_wrench_tared_tcp"] = (
+            self.wrist_joint_reaction_wrench_tared_tcp.detach().clone()
+        )
+        self.extras["plug_tcp_rel_pos"] = self.plug_tcp_rel_pos.detach().clone()
+        self.extras["plug_tcp_rel_quat"] = self.plug_tcp_rel_quat.detach().clone()
+        self.extras["plug_tcp_rel_linvel"] = self.plug_tcp_rel_linvel.detach().clone()
+        self.extras["plug_tcp_rel_angvel"] = self.plug_tcp_rel_angvel.detach().clone()
+        self.extras["plug_tcp_translation_drift"] = self.plug_tcp_translation_drift.detach().clone()
+        self.extras["plug_tcp_rotation_drift"] = self.plug_tcp_rotation_drift.detach().clone()
+        self.extras["force_semantics_sample_index"] = self.force_semantics_sample_index.detach().clone()
+        self.extras["force_semantics_sample_time_s"] = self.force_semantics_sample_time_s.detach().clone()
+        self.extras["wrist_tare_plug_socket_force_norm"] = (
+            self.wrist_tare_plug_socket_force_norm.detach().clone()
+        )
+        self.extras["wrist_tare_valid"] = self.wrist_tare_valid.detach().clone()
         self.extras["flange_force_world"] = self.flange_force_world.detach().clone()
         self.extras["flange_force_socket"] = self.flange_force_socket.detach().clone()
         self.extras["flange_force_norm"] = self.flange_force_norm.detach().clone()
@@ -1427,12 +1879,14 @@ class AssemblyRuntimeEnvMixin:
         return observations
 
     def _augment_policy_observation_with_flange_force(self, observations):
-        if not self.enable_flange_force_sensor or not self.flange_force_sensor_obs:
+        if not self.enable_held_asset_net_contact_force or not self.held_asset_net_contact_force_obs_enabled:
             return observations
 
         if isinstance(observations, dict) and isinstance(observations.get("policy"), torch.Tensor):
             observations = dict(observations)
-            observations["policy"] = torch.cat([observations["policy"], self.flange_force_obs], dim=-1)
+            observations["policy"] = torch.cat(
+                [observations["policy"], self.held_asset_net_contact_force_obs], dim=-1
+            )
             return observations
         return observations
 
@@ -1446,10 +1900,38 @@ class AssemblyRuntimeEnvMixin:
 
     def _reset_idx(self, env_ids):
         env_ids = self._env_ids_to_tensor(env_ids)
+        if hasattr(self, "_plug_tcp_rel_prev_valid"):
+            self._plug_tcp_rel_prev_valid[env_ids] = False
+            self.wrist_tare_valid[env_ids] = False
         self._reset_srsa_success_state(env_ids)
         self._reset_srsa_eval_diagnostic_state(env_ids)
         self._prepare_axial_task_reset(env_ids)
         super()._reset_idx(env_ids)
+        self._reset_force_semantics_state(env_ids)
+
+    def _reset_force_semantics_state(self, env_ids: torch.Tensor) -> None:
+        if env_ids.numel() == 0 or not hasattr(self, "plug_tcp_rel_pos"):
+            return
+        self._plug_tcp_rel_prev_valid[env_ids] = False
+        self._update_plug_tcp_relative_state(self.physics_dt)
+        self.plug_tcp_rel_pos_initial[env_ids] = self.plug_tcp_rel_pos[env_ids]
+        self.plug_tcp_rel_quat_initial[env_ids] = self.plug_tcp_rel_quat[env_ids]
+        self._plug_tcp_rel_prev_pos[env_ids] = self.plug_tcp_rel_pos[env_ids]
+        self._plug_tcp_rel_prev_quat[env_ids] = self.plug_tcp_rel_quat[env_ids]
+        self._plug_tcp_rel_prev_valid[env_ids] = True
+        self.plug_tcp_rel_linvel[env_ids] = 0.0
+        self.plug_tcp_rel_angvel[env_ids] = 0.0
+        self.plug_tcp_translation_drift[env_ids] = 0.0
+        self.plug_tcp_rotation_drift[env_ids] = 0.0
+        self.wrist_joint_reaction_wrench_tare_sensor[env_ids] = self.wrist_joint_reaction_wrench_sensor[env_ids]
+        self.wrist_joint_reaction_wrench_tared_sensor[env_ids] = 0.0
+        self.wrist_joint_reaction_wrench_tared_world[env_ids] = 0.0
+        self.wrist_joint_reaction_wrench_tared_tcp[env_ids] = 0.0
+        self.wrist_tare_plug_socket_force_norm[env_ids, 0] = torch.linalg.norm(
+            self.plug_socket_contact_force_world[env_ids], dim=-1
+        )
+        self.wrist_tare_valid[env_ids] = True
+        self.force_semantics_sample_index[env_ids] = 0
 
     def _prepare_axial_task_reset(self, env_ids: torch.Tensor) -> None:
         if (
@@ -1473,13 +1955,20 @@ class AssemblyRuntimeEnvMixin:
                     self.curr_max_disp[env_ids] = upper
         self.cfg_task.close_error_thresh = float(self.current_close_error_thresh_tensor[env_ids[0]].item())
         if hasattr(self, "_srsa_base_gripper_open_width"):
+            plug_scale_xy = (
+                self.current_plug_scale_xy[env_ids]
+                if bool(getattr(self, "task_param_geometry_scale", True))
+                else torch.ones((env_ids.numel(),), dtype=torch.float32, device=self.device)
+            )
             self.current_gripper_open_width[env_ids] = (
-                float(self._srsa_base_gripper_open_width) * self.current_plug_scale_xy[env_ids]
+                float(self._srsa_base_gripper_open_width) * plug_scale_xy
             )
 
     def _apply_geometry_variant(self, env_ids: torch.Tensor) -> torch.Tensor:
         applied = torch.zeros((env_ids.numel(),), dtype=torch.bool, device=self.device)
         if env_ids.numel() == 0:
+            return applied
+        if not bool(getattr(self, "task_param_geometry_scale", True)):
             return applied
         try:
             from pxr import Gf, UsdGeom
@@ -1534,6 +2023,30 @@ class AssemblyRuntimeEnvMixin:
         self._robot.set_joint_effort_target(joint_effort, env_ids=env_ids)
         self.step_sim_no_action()
 
+    def _move_gripper_to_grasp_pose(self, env_ids):
+        if not getattr(self, "rigid_weld_enabled", False):
+            return super()._move_gripper_to_grasp_pose(env_ids)
+        env_ids = self._env_ids_to_tensor(env_ids)
+        # With a pre-enabled fixed joint, the temporary physics step after
+        # teleporting HeldAsset can move both constrained bodies. The grasp IK
+        # must use the sampled reset pose, not that transient cached pose.
+        gripper_goal_quat, gripper_goal_pos = torch_utils.tf_combine(
+            self._rigid_weld_desired_held_quat[env_ids],
+            self._rigid_weld_desired_held_pos[env_ids],
+            self.plug_grasp_quat_local[env_ids],
+            self.plug_grasp_pos_local[env_ids],
+        )
+        gripper_goal_quat, gripper_goal_pos = torch_utils.tf_combine(
+            gripper_goal_quat,
+            gripper_goal_pos,
+            self.robot_to_gripper_quat[env_ids],
+            self.palm_to_finger_center[env_ids],
+        )
+        self.ctrl_target_fingertip_midpoint_pos[env_ids] = gripper_goal_pos
+        self.ctrl_target_fingertip_midpoint_quat[env_ids] = gripper_goal_quat
+        self.set_pos_inverse_kinematics(env_ids)
+        self.step_sim_no_action()
+
     def randomize_held_initial_state(self, env_ids, pre_grasp):
         if not self.enable_axial_task_param_sampler:
             return super().randomize_held_initial_state(env_ids, pre_grasp)
@@ -1560,6 +2073,10 @@ class AssemblyRuntimeEnvMixin:
         plug_in_freespace = self.curriculum_disp[env_ids] > self.disassembly_dists[env_ids]
         if torch.any(plug_in_freespace):
             held_state[plug_in_freespace, :2] += self.held_pos_init_rand[env_ids[plug_in_freespace], :2]
+
+        if getattr(self, "rigid_weld_enabled", False):
+            self._rigid_weld_desired_held_pos[env_ids] = held_state[:, 0:3] - self.scene.env_origins[env_ids]
+            self._rigid_weld_desired_held_quat[env_ids] = held_state[:, 3:7]
 
         self._held_asset.write_root_state_to_sim(held_state, env_ids=env_ids)
         self._held_asset.reset()

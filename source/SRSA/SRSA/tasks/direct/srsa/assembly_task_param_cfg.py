@@ -17,6 +17,11 @@ from .task_family_config import TASK_FAMILY_CONFIG
 
 @configclass
 class AssemblyTaskParamEnvCfg(AssemblyEnvCfg):
+    # One Isaac process can host heterogeneous AutoMate assets by statically
+    # sharding vector-environment replicas across these ordered tasks.
+    multitask_assembly_ids: list[str] | None = None
+    multitask_manifest_path: str | None = None
+    multitask_require_task_vectors: bool = False
     use_task_family: bool = False
     use_task_param: bool = False
     task_family_config = TASK_FAMILY_CONFIG

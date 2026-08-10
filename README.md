@@ -15,6 +15,7 @@ SRSA is a framework to retrieve relevant skills from pre-existing skill library 
 
 - [Skill Retrieval](#skill-retrieval)
 - [Skill Adaptation](#skill-adaptation)
+- [FACA M0 heterogeneous multi-task environment](docs/faca_multitask_agent_plan.md)
 
 ## Installation
 

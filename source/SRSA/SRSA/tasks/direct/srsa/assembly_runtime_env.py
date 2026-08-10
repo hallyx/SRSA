@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import gc
 import json
 import os
 import re
@@ -11,11 +12,28 @@ import warnings
 import gymnasium as gym
 import numpy as np
 import torch
+import warp as wp
 import isaacsim.core.utils.torch as torch_utils
+import isaaclab.sim as sim_utils
 from isaaclab.sensors import ContactSensor
+from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.math import quat_apply, quat_conjugate
 from isaaclab_tasks.direct.automate.assembly_tasks_cfg import ASSET_DIR
 
+from .faca_m0_contract import (
+    FACA_M0_CONTRACT_VERSION,
+    FACA_M0_TASK_FIELD_ORDER,
+    build_faca_m0_inputs,
+    build_faca_m0_state,
+    faca_m0_contract_metadata,
+    validate_faca_m0_task_vec,
+)
+from .multitask_assembly import (
+    MultitaskAssemblySpec,
+    build_env_task_indices,
+    expand_entries_for_envs,
+    load_multitask_assembly_spec,
+)
 from .task_family_config import TASK_FAMILY_CONFIG
 from .task_param_utils import (
     AXIAL_TASK_VEC_FIELD_ORDER,
@@ -29,6 +47,13 @@ from .task_param_utils import (
     resolve_effective_task_params,
     resolve_task_family_config,
 )
+
+
+if tuple(AXIAL_TASK_VEC_FIELD_ORDER) != FACA_M0_TASK_FIELD_ORDER:
+    raise RuntimeError(
+        "SRSA axial task-vector field order drifted from the FACA M0 contract: "
+        f"runtime={tuple(AXIAL_TASK_VEC_FIELD_ORDER)} contract={FACA_M0_TASK_FIELD_ORDER}."
+    )
 
 
 _LEGACY_FLANGE_FORCE_WARNING_EMITTED = False
@@ -200,6 +225,9 @@ class AssemblyRuntimeEnvMixin:
 
     def __init__(self, cfg, render_mode: str | None = None, **kwargs):
         self._apply_runtime_task_overrides(cfg)
+        self._srsa_multitask_spec: MultitaskAssemblySpec | None = getattr(
+            cfg, "_srsa_multitask_spec", None
+        )
         task_cfg = cfg.tasks[cfg.task_name]
         self.vision_noise_xy_std = _read_float_env(
             "VISION_NOISE_XY_STD",
@@ -229,8 +257,26 @@ class AssemblyRuntimeEnvMixin:
             cfg._srsa_base_policy_observation_space = _policy_obs_base_dim(cfg)
         task_cfg = cfg.tasks[cfg.task_name]
 
+        multitask_ids = os.environ.get("SRSA_MULTITASK_ASSEMBLY_IDS", "").strip()
+        if not multitask_ids:
+            multitask_ids = getattr(cfg, "multitask_assembly_ids", None)
+        multitask_manifest = os.environ.get("SRSA_MULTITASK_MANIFEST", "").strip()
+        if not multitask_manifest:
+            multitask_manifest = getattr(cfg, "multitask_manifest_path", None)
+        multitask_spec = load_multitask_assembly_spec(
+            assembly_ids=multitask_ids,
+            manifest_path=multitask_manifest,
+            require_task_vectors=_read_bool_env(
+                "SRSA_MULTITASK_REQUIRE_TASK_VECS",
+                bool(getattr(cfg, "multitask_require_task_vectors", False)),
+            ),
+        )
+        cfg._srsa_multitask_spec = multitask_spec
+        if multitask_spec is not None:
+            AssemblyRuntimeEnvMixin._apply_multitask_asset_overrides(cfg, task_cfg, multitask_spec)
+
         assembly_id = os.environ.get("SRSA_ASSEMBLY_ID", "").strip()
-        if assembly_id:
+        if assembly_id and multitask_spec is None:
             assembly_dir = f"{ASSET_DIR}/{assembly_id}/"
             task_cfg.assembly_id = assembly_id
             task_cfg.assembly_dir = assembly_dir
@@ -284,11 +330,17 @@ class AssemblyRuntimeEnvMixin:
             "SRSA_TASK_PARAM_GEOMETRY_SCALE",
             bool(getattr(cfg, "task_param_geometry_scale", True)),
         )
+        if multitask_spec is not None:
+            task_param_geometry_scale = False
         newt_obs = _read_bool_env("SRSA_NEWT_OBS", bool(getattr(cfg, "newt_obs", False)))
         enable_axial_task_param_sampler = _read_bool_env(
             "SRSA_ENABLE_AXIAL_TASK_PARAM_SAMPLER",
             bool(getattr(cfg, "enable_axial_task_param_sampler", False)),
         )
+        if multitask_spec is not None:
+            # Each replica is tied to a real USD task for the full run.
+            # Reset-time task/geometry sampling would break that invariant.
+            enable_axial_task_param_sampler = False
         cfg.newt_obs = newt_obs
         cfg.newt_state_dim = int(getattr(cfg, "newt_state_dim", NEWT_STATE_DIM))
         cfg.newt_action_dim = int(getattr(cfg, "newt_action_dim", NEWT_ACTION_DIM))
@@ -557,6 +609,12 @@ class AssemblyRuntimeEnvMixin:
                 "SRSA_GRASP_CONSTRAINT_MODE must be physical_grasp or rigid_weld, "
                 f"got {cfg.grasp_constraint_mode!r}."
             )
+        if multitask_spec is not None and cfg.grasp_constraint_mode != "physical_grasp":
+            raise ValueError(
+                "Heterogeneous SRSA training currently supports only physical_grasp. "
+                "The rigid_weld audit mode authors one shared grasp transform and is not "
+                "a valid multi-assembly training configuration."
+            )
         cfg.wrist_force_sensor_body_name = os.environ.get(
             "SRSA_WRIST_FORCE_SENSOR_BODY_NAME",
             str(getattr(cfg, "wrist_force_sensor_body_name", "force_sensor")),
@@ -579,6 +637,57 @@ class AssemblyRuntimeEnvMixin:
         if cfg.task_param_obs:
             policy_dim += int(cfg.task_param_obs_dim)
         cfg.observation_space = policy_dim
+
+    @staticmethod
+    def _ordered_multi_usd_spawn(spawn_cfg, usd_paths: list[str]):
+        """Convert one UsdFileCfg into an ordered MultiUsdFileCfg losslessly."""
+
+        multi_spawn = sim_utils.MultiUsdFileCfg(usd_path=usd_paths, random_choice=False)
+        for name, value in getattr(spawn_cfg, "__dict__", {}).items():
+            if name not in {"func", "usd_path", "random_choice"}:
+                setattr(multi_spawn, name, value)
+        # The USDs are already the requested physical geometries. A shared
+        # process-level scale must never be applied to heterogeneous assets.
+        multi_spawn.scale = None
+        return multi_spawn
+
+    @staticmethod
+    def _apply_multitask_asset_overrides(cfg, task_cfg, spec: MultitaskAssemblySpec) -> None:
+        """Configure ordered heterogeneous asset spawning before scene creation."""
+
+        assembly_ids = list(spec.assembly_ids)
+        first_id = assembly_ids[0]
+        first_dir = f"{ASSET_DIR}/{first_id}/"
+        task_cfg.assembly_id = first_id
+        task_cfg.assembly_dir = first_dir
+        task_cfg.disassembly_path_json = f"{first_dir}disassemble_traj.json"
+        cfg.multitask_assembly_ids = assembly_ids
+        cfg.multitask_manifest_path = spec.source if spec.source != "assembly_ids" else None
+        cfg.multitask_require_task_vectors = spec.task_vectors_complete
+
+        if int(cfg.scene.num_envs) < len(assembly_ids):
+            raise ValueError(
+                f"num_envs={cfg.scene.num_envs} is smaller than heterogeneous task count "
+                f"{len(assembly_ids)}; allocate at least one environment replica per task."
+            )
+        # Isaac Lab only permits different assets below /World/envs/env_.*/
+        # when physics replication is disabled.
+        cfg.scene.replicate_physics = False
+
+        fixed_paths = [
+            f"{ASSET_DIR}/{assembly_id}/{task_cfg.fixed_asset_cfg.usd_path}"
+            for assembly_id in assembly_ids
+        ]
+        held_paths = [
+            f"{ASSET_DIR}/{assembly_id}/{task_cfg.held_asset_cfg.usd_path}"
+            for assembly_id in assembly_ids
+        ]
+        task_cfg.fixed_asset.spawn = AssemblyRuntimeEnvMixin._ordered_multi_usd_spawn(
+            task_cfg.fixed_asset.spawn, fixed_paths
+        )
+        task_cfg.held_asset.spawn = AssemblyRuntimeEnvMixin._ordered_multi_usd_spawn(
+            task_cfg.held_asset.spawn, held_paths
+        )
 
     @staticmethod
     def _apply_runtime_camera_overrides(cfg) -> None:
@@ -625,8 +734,66 @@ class AssemblyRuntimeEnvMixin:
         if hasattr(task_cfg, "fixed_asset") and hasattr(task_cfg.fixed_asset, "spawn"):
             task_cfg.fixed_asset.spawn.scale = (hole_scale_xy, hole_scale_xy, 1.0)
 
+    @staticmethod
+    def _read_runtime_json(path: str):
+        local_path = retrieve_file_path(path, download_dir="./")
+        with open(local_path, encoding="utf-8") as handle:
+            return json.load(handle)
+
+    def _load_assembly_info(self):
+        """Load per-environment grasps and insertion distances for heterogeneous tasks."""
+
+        if self._srsa_multitask_spec is None:
+            return super()._load_assembly_info()
+
+        env_entries = expand_entries_for_envs(self._srsa_multitask_spec.entries, self.num_envs)
+        self._srsa_env_multitask_entries = env_entries
+        task_indices = build_env_task_indices(self.num_envs, len(self._srsa_multitask_spec.entries))
+        self._srsa_env_task_indices_cpu = task_indices
+        self.multitask_task_index = torch.tensor(task_indices, dtype=torch.long, device=self.device)
+        self.multitask_assembly_id_numeric = torch.tensor(
+            [int(entry.assembly_id) for entry in env_entries], dtype=torch.long, device=self.device
+        )
+        self.multitask_assembly_ids = self._srsa_multitask_spec.assembly_ids
+
+        grasp_dict = self._read_runtime_json(self.cfg_task.plug_grasp_json)
+        distance_dict = self._read_runtime_json(self.cfg_task.disassembly_dist_json)
+        plug_grasps = [grasp_dict[f"asset_{entry.assembly_id}"] for entry in env_entries]
+        disassembly_dists = [
+            entry.insertion_depth
+            if entry.insertion_depth is not None
+            else distance_dict[f"asset_{entry.assembly_id}"]
+            for entry in env_entries
+        ]
+        return (
+            torch.as_tensor(plug_grasps, dtype=torch.float32, device=self.device),
+            torch.as_tensor(disassembly_dists, dtype=torch.float32, device=self.device),
+        )
+
+    def _load_disassembly_data(self):
+        """Load one imitation trajectory bank per heterogeneous assembly."""
+
+        if self._srsa_multitask_spec is None:
+            return super()._load_disassembly_data()
+
+        trajectories = []
+        for entry in self._srsa_multitask_spec.entries:
+            path = f"{ASSET_DIR}/{entry.assembly_id}/disassemble_traj.json"
+            disassembly_traj = self._read_runtime_json(path)
+            eef_pos_traj = []
+            for trajectory in disassembly_traj:
+                points = np.asarray(trajectory["fingertip_centered_pos"], dtype=np.float32).reshape((-1, 3))
+                eef_pos_traj.append(points - points[0])
+            tensor = torch.as_tensor(np.asarray(eef_pos_traj), dtype=torch.float32, device=self.device)
+            if tensor.ndim == 2:
+                tensor = tensor.unsqueeze(0)
+            trajectories.append(tensor)
+        self._srsa_eef_pos_traj_by_task = tuple(trajectories)
+        self.eef_pos_traj = trajectories[0]
+
     def _init_tensors(self):
         super()._init_tensors()
+        self.faca_m0_contract_version = FACA_M0_CONTRACT_VERSION
         self._vision_noise_episode_local = torch.zeros((self.num_envs, 3), device=self.device)
         self._vision_noise_world = torch.zeros((self.num_envs, 3), device=self.device)
         self._vision_noise_cache_step = None
@@ -959,6 +1126,190 @@ class AssemblyRuntimeEnvMixin:
                 )
                 * plug_scale_xy
             )
+        if self._srsa_multitask_spec is None:
+            return
+
+        from isaaclab_tasks.direct.automate import automate_algo_utils as automate_algo
+        from isaaclab_tasks.direct.automate import industreal_algo_utils as industreal_algo
+
+        dense_assets = [(self.plug_mesh, self.plug_sample_points, self.socket_mesh)]
+        gripper_widths = [float(self.gripper_open_width)]
+        for entry in self._srsa_multitask_spec.entries[1:]:
+            assembly_dir = f"{ASSET_DIR}/{entry.assembly_id}/"
+            dense_assets.append(
+                industreal_algo.load_asset_mesh_in_warp(
+                    assembly_dir + self.cfg_task.held_asset_cfg.obj_path,
+                    assembly_dir + self.cfg_task.fixed_asset_cfg.obj_path,
+                    self.cfg_task.num_mesh_sample_points,
+                    self.wp_device,
+                )
+            )
+            gripper_widths.append(
+                float(
+                    automate_algo.get_gripper_open_width(
+                        assembly_dir + self.cfg_task.held_asset_cfg.obj_path
+                    )
+                )
+            )
+        self._srsa_dense_assets_by_task = tuple(dense_assets)
+        self._srsa_gripper_width_by_task = torch.tensor(
+            gripper_widths, dtype=torch.float32, device=self.device
+        )
+        self.current_gripper_open_width[:] = self._srsa_gripper_width_by_task[
+            self.multitask_task_index
+        ]
+        print(
+            "[SRSA multitask] "
+            f"tasks={len(self._srsa_multitask_spec.entries)} envs={self.num_envs} "
+            f"replicate_physics={self.cfg.scene.replicate_physics} "
+            f"task_vectors_complete={self._srsa_multitask_spec.task_vectors_complete}"
+        )
+
+    def _update_rew_buf(self, curr_successes):
+        """Compute dense reward with the geometry and trajectory of each env shard."""
+
+        if self._srsa_multitask_spec is None:
+            return super()._update_rew_buf(curr_successes)
+
+        from isaaclab_tasks.direct.automate import automate_algo_utils as automate_algo
+        sdf_reward = self._get_multitask_sdf_reward()
+        imitation_reward = torch.zeros_like(sdf_reward)
+        curr_eef_pos = (self.fingertip_midpoint_pos - self.gripper_goal_pos).reshape(-1, 3)
+
+        for task_index in range(len(self._srsa_multitask_spec.entries)):
+            env_ids = torch.nonzero(self.multitask_task_index == task_index, as_tuple=False).squeeze(-1)
+            imitation_reward[env_ids] = automate_algo.get_imitation_reward_from_dtw(
+                self._srsa_eef_pos_traj_by_task[task_index],
+                curr_eef_pos[env_ids],
+                self.prev_fingertip_midpoint_pos[env_ids],
+                self.soft_dtw_criterion,
+                self.device,
+            )
+
+        self.prev_fingertip_midpoint_pos = torch.cat(
+            (
+                self.prev_fingertip_midpoint_pos[:, 1:, :],
+                curr_eef_pos.unsqueeze(1).clone().detach(),
+            ),
+            dim=1,
+        )
+        rew_dict = {
+            "sdf": sdf_reward,
+            "imitation": imitation_reward,
+            "curr_successes": curr_successes.clone().float(),
+        }
+        rew_buf = (
+            self.cfg_task.sdf_rwd_scale * rew_dict["sdf"]
+            + self.cfg_task.imitation_rwd_scale * rew_dict["imitation"]
+            + rew_dict["curr_successes"]
+        )
+        for rew_name, reward in rew_dict.items():
+            self.extras[f"logs_rew_{rew_name}"] = reward.mean()
+        self.extras["multitask_task_index"] = self.multitask_task_index.detach().clone()
+        self.extras["multitask_assembly_id"] = self.multitask_assembly_id_numeric.detach().clone()
+        return rew_buf
+
+    def _get_multitask_sdf_reward(self) -> torch.Tensor:
+        """Evaluate task-specific SDF meshes with one garbage collection per batch."""
+
+        from isaaclab_tasks.direct.automate import industreal_algo_utils as industreal_algo
+
+        sdf_reward = torch.zeros((self.num_envs,), dtype=torch.float32, device=self.device)
+        for env_index, task_index in enumerate(self._srsa_env_task_indices_cpu):
+            plug_mesh, plug_sample_points, _ = self._srsa_dense_assets_by_task[task_index]
+            mesh_points = wp.clone(plug_mesh.points)
+            mesh_indices = wp.clone(plug_mesh.indices)
+            mesh_copy = wp.Mesh(points=mesh_points, indices=mesh_indices)
+            goal_transform = wp.transform(self.fixed_pos[env_index], self.fixed_quat[env_index])
+            wp.launch(
+                kernel=industreal_algo.transform_points,
+                dim=len(mesh_copy.points),
+                inputs=[mesh_copy.points, mesh_copy.points, goal_transform],
+                device=self.wp_device,
+            )
+            mesh_copy.refit()
+
+            sampled_points = wp.clone(plug_sample_points)
+            current_transform = wp.transform(self.held_pos[env_index], self.held_quat[env_index])
+            wp.launch(
+                kernel=industreal_algo.transform_points,
+                dim=len(sampled_points),
+                inputs=[sampled_points, sampled_points, current_transform],
+                device=self.wp_device,
+            )
+            sdf_dist = wp.zeros((len(sampled_points),), dtype=wp.float32, device=self.wp_device)
+            wp.launch(
+                kernel=industreal_algo.get_batch_sdf,
+                dim=len(sampled_points),
+                inputs=[mesh_copy.id, sampled_points, sdf_dist],
+                device=self.wp_device,
+            )
+            sdf_dist_torch = wp.to_torch(sdf_dist)
+            sdf_dist_torch = torch.where(sdf_dist_torch < 0.0, 0.0, sdf_dist_torch)
+            sdf_reward[env_index] = torch.mean(sdf_dist_torch)
+
+            del mesh_copy, mesh_points, mesh_indices, sampled_points, sdf_dist, sdf_dist_torch
+
+        gc.collect()
+        return -torch.log(sdf_reward)
+
+    def _get_rewards(self):
+        """Use per-environment insertion targets for heterogeneous direct training."""
+
+        if self._srsa_multitask_spec is None:
+            return super()._get_rewards()
+
+        from isaaclab_tasks.direct.automate import automate_algo_utils as automate_algo
+
+        curr_successes = self._compute_current_success()
+        rew_buf = self._update_rew_buf(curr_successes)
+        self.ep_succeeded = torch.logical_or(self.ep_succeeded, curr_successes)
+
+        if hasattr(self, "_update_task_param_extras"):
+            self._update_task_param_extras()
+        if hasattr(self, "_update_flange_force_extras"):
+            self._update_flange_force_extras()
+        if hasattr(self, "_update_newt_task_extras"):
+            self._update_newt_task_extras()
+
+        if torch.any(self.reset_buf):
+            self.extras["successes"] = torch.count_nonzero(self.ep_succeeded) / self.num_envs
+            sbc_rwd_scale = automate_algo.get_curriculum_reward_scale(
+                curr_max_disp=self.curr_max_disp,
+                curriculum_height_bound=self.curriculum_height_bound,
+            )
+            rew_buf *= sbc_rwd_scale
+
+            if self.cfg_task.if_sbc:
+                self.curr_max_disp = automate_algo.get_new_max_disp(
+                    curr_success=torch.count_nonzero(self.ep_succeeded) / self.num_envs,
+                    cfg_task=self.cfg_task,
+                    curriculum_height_bound=self.curriculum_height_bound,
+                    curriculum_height_step=self.curriculum_height_step,
+                    curr_max_disp=self.curr_max_disp,
+                )
+            self.extras["curr_max_disp"] = self.curr_max_disp
+
+            if self.cfg_task.if_logging_eval:
+                self.success_log = torch.cat(
+                    [self.success_log, self.ep_succeeded.reshape((self.num_envs, 1))], dim=0
+                )
+                if self.success_log.shape[0] >= self.cfg_task.num_eval_trials:
+                    if hasattr(self, "_write_srsa_eval_log_to_hdf5"):
+                        self._write_srsa_eval_log_to_hdf5(self.cfg_task.eval_filename)
+                    else:
+                        from isaaclab_tasks.direct.automate import automate_log_utils as automate_log
+
+                        automate_log.write_log_to_hdf5(
+                            self.held_asset_pose_log,
+                            self.fixed_asset_pose_log,
+                            self.success_log,
+                            self.cfg_task.eval_filename,
+                        )
+                    raise SystemExit(0)
+
+        self.prev_actions = self.actions.clone()
+        return rew_buf
 
     def _configure_runtime_gym_spaces(self) -> None:
         if bool(getattr(self.cfg, "newt_obs", False)):
@@ -1391,6 +1742,7 @@ class AssemblyRuntimeEnvMixin:
         self.axial_task_param_sampler = None
 
         if not self.enable_task_param:
+            self._apply_multitask_task_vectors()
             return
 
         task_family_config = dict(getattr(self.cfg, "task_family_config", TASK_FAMILY_CONFIG))
@@ -1470,6 +1822,46 @@ class AssemblyRuntimeEnvMixin:
                 self.curriculum_height_bound[:, 1] = self.disassembly_dists + float(
                     self.cfg_task.curriculum_freespace_range
                 )
+
+        self._apply_multitask_task_vectors()
+
+    def _apply_multitask_task_vectors(self) -> None:
+        """Bind static FACA M0 task vectors to the same env-to-USD assignment."""
+
+        if self._srsa_multitask_spec is None:
+            return
+        env_entries = getattr(
+            self,
+            "_srsa_env_multitask_entries",
+            expand_entries_for_envs(self._srsa_multitask_spec.entries, self.num_envs),
+        )
+        if not self._srsa_multitask_spec.task_vectors_complete:
+            warnings.warn(
+                "Heterogeneous assets are enabled without complete task_vec_6 metadata. "
+                "This is valid for environment smoke tests, but TD-MPC2 M0 training should set "
+                "SRSA_MULTITASK_MANIFEST and SRSA_MULTITASK_REQUIRE_TASK_VECS=1.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            return
+
+        task_vec = torch.tensor(
+            [entry.task_vec_6 for entry in env_entries], dtype=torch.float32, device=self.device
+        )
+        task_vec = validate_faca_m0_task_vec(task_vec, expected_batch_size=self.num_envs)
+        self.current_task_vec[:] = task_vec
+        self.current_task_id[:, 0] = task_vec[:, 0].round().to(dtype=torch.long)
+        self.current_task_param_tensors["task_vec"] = self.current_task_vec
+        insertion_depths = [entry.insertion_depth for entry in env_entries]
+        if all(value is not None for value in insertion_depths):
+            insertion_depth = torch.tensor(insertion_depths, dtype=torch.float32, device=self.device)
+            self.current_insertion_depth_tensor[:] = insertion_depth
+            self.disassembly_dists[:] = insertion_depth
+        success_tolerances = [entry.success_pos_tol for entry in env_entries]
+        if all(value is not None for value in success_tolerances):
+            self.current_close_error_thresh_tensor[:] = torch.tensor(
+                success_tolerances, dtype=torch.float32, device=self.device
+            )
 
     def _set_current_task_param_tensors(self, env_ids: torch.Tensor, sampled_params: dict) -> None:
         env_ids = self._env_ids_to_tensor(env_ids)
@@ -2138,6 +2530,70 @@ class AssemblyRuntimeEnvMixin:
     def _canonicalize_quat(self, quat: torch.Tensor) -> torch.Tensor:
         quat = quat / torch.linalg.norm(quat, dim=-1, keepdim=True).clamp_min(1.0e-8)
         return quat * torch.where(quat[:, :1] < 0.0, -1.0, 1.0)
+
+    def get_faca_m0_contract(self) -> dict[str, object]:
+        """Return the versioned force-free TD-MPC2 M0 environment contract."""
+
+        if self._srsa_multitask_spec is not None:
+            metadata = faca_m0_contract_metadata()
+            metadata.update(
+                {
+                    "multitask": True,
+                    "assignment": "env_index_mod_num_tasks",
+                    "assembly_ids": list(self._srsa_multitask_spec.assembly_ids),
+                    "num_tasks": len(self._srsa_multitask_spec.entries),
+                    "task_vectors_complete": self._srsa_multitask_spec.task_vectors_complete,
+                }
+            )
+            return metadata
+        assembly_id = getattr(self.cfg_task, "assembly_id", os.environ.get("SRSA_ASSEMBLY_ID", ""))
+        return faca_m0_contract_metadata(assembly_id=str(assembly_id))
+
+    def get_faca_m0_state(self, *, use_visual_noise: bool = False) -> torch.Tensor:
+        """Return FACA M0's exact 14D canonical state without task/force concatenation."""
+
+        visual_noise_world = None
+        if use_visual_noise:
+            self._refresh_vision_noise_cache()
+            visual_noise_world = self._vision_noise_world
+        return build_faca_m0_state(
+            fixed_quat_world=self.fixed_quat,
+            fixed_pos_world=self.fixed_pos_obs_frame,
+            tcp_quat_world=self.fingertip_midpoint_quat,
+            tcp_pos_world=self.fingertip_midpoint_pos,
+            tcp_linvel_world=self.ee_linvel_fd,
+            tcp_angvel_world=self.ee_angvel_fd,
+            joint_pos=self.joint_pos,
+            visual_noise_world=visual_noise_world,
+        )
+
+    def get_faca_m0_task_vec(self) -> torch.Tensor:
+        """Return the separate episode task descriptor consumed by AxialTaskEncoder."""
+
+        return validate_faca_m0_task_vec(self.current_task_vec, expected_batch_size=self.num_envs)
+
+    def get_faca_m0_task_indices(self) -> torch.Tensor:
+        """Return the static task shard index for each vector-environment replica."""
+
+        if self._srsa_multitask_spec is None:
+            return torch.zeros((self.num_envs,), dtype=torch.long, device=self.device)
+        return self.multitask_task_index.detach().clone()
+
+    def get_faca_m0_assembly_ids(self) -> tuple[str, ...]:
+        """Return the assembly ID assigned to every environment replica."""
+
+        if self._srsa_multitask_spec is None:
+            assembly_id = str(getattr(self.cfg_task, "assembly_id", "")).zfill(5)
+            return (assembly_id,) * self.num_envs
+        return tuple(entry.assembly_id for entry in self._srsa_env_multitask_entries)
+
+    def get_faca_m0_inputs(self, *, use_visual_noise: bool = False) -> dict[str, torch.Tensor]:
+        """Return validated ``state`` and ``task`` tensors for TD-MPC2 M0."""
+
+        return build_faca_m0_inputs(
+            state=self.get_faca_m0_state(use_visual_noise=use_visual_noise),
+            task_vec=self.get_faca_m0_task_vec(),
+        )
 
     def _build_newt_state(self) -> tuple[torch.Tensor, torch.Tensor]:
         state_dim = int(getattr(self.cfg, "newt_state_dim", NEWT_STATE_DIM))

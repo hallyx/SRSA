@@ -1,0 +1,403 @@
+{
+  "scope": "Historical pre-AutoMate training; original bounded relaxed evaluation",
+  "unique_tasksize10_episode_files": 28,
+  "unique_tasksize10_episodes": 28000,
+  "size_abc": [
+    {
+      "group": "train",
+      "arm": "A",
+      "training_seeds": 3,
+      "mean_pct": 96.2890625,
+      "sample_std_pp": 1.140865770821109
+    },
+    {
+      "group": "train",
+      "arm": "B",
+      "training_seeds": 3,
+      "mean_pct": 97.47395833333333,
+      "sample_std_pp": 0.5332186257667494
+    },
+    {
+      "group": "train",
+      "arm": "C",
+      "training_seeds": 3,
+      "mean_pct": 92.91666666666667,
+      "sample_std_pp": 3.9304588374866682
+    },
+    {
+      "group": "interpolation",
+      "arm": "A",
+      "training_seeds": 3,
+      "mean_pct": 96.37044270833334,
+      "sample_std_pp": 0.9230108645024626
+    },
+    {
+      "group": "interpolation",
+      "arm": "B",
+      "training_seeds": 3,
+      "mean_pct": 97.8515625,
+      "sample_std_pp": 0.56311340794291
+    },
+    {
+      "group": "interpolation",
+      "arm": "C",
+      "training_seeds": 3,
+      "mean_pct": 93.310546875,
+      "sample_std_pp": 3.854330248411306
+    },
+    {
+      "group": "clearance_holdout",
+      "arm": "A",
+      "training_seeds": 3,
+      "mean_pct": 96.61458333333334,
+      "sample_std_pp": 0.29834477180702085
+    },
+    {
+      "group": "clearance_holdout",
+      "arm": "B",
+      "training_seeds": 3,
+      "mean_pct": 98.37239583333334,
+      "sample_std_pp": 0.5966895436140417
+    },
+    {
+      "group": "clearance_holdout",
+      "arm": "C",
+      "training_seeds": 3,
+      "mean_pct": 93.68489583333334,
+      "sample_std_pp": 3.6765124748686198
+    },
+    {
+      "group": "extrapolation",
+      "arm": "A",
+      "training_seeds": 3,
+      "mean_pct": 95.27994791666666,
+      "sample_std_pp": 1.2288141984490153
+    },
+    {
+      "group": "extrapolation",
+      "arm": "B",
+      "training_seeds": 3,
+      "mean_pct": 95.21484375,
+      "sample_std_pp": 1.291870757355757
+    },
+    {
+      "group": "extrapolation",
+      "arm": "C",
+      "training_seeds": 3,
+      "mean_pct": 91.17838541666666,
+      "sample_std_pp": 4.534798471388422
+    }
+  ],
+  "size_ood": {
+    "primary_interpolation": {
+      "A_true": 0.9638671875,
+      "B_fixed": 0.9812825520833334,
+      "delta": -0.01741536458333337
+    },
+    "primary_extrapolation": {
+      "A_true": 0.958984375,
+      "B_fixed": 0.9586588541666666,
+      "delta": 0.00032552083333337034
+    },
+    "overall_primary": {
+      "A_true": 0.9622395833333334,
+      "B_fixed": 0.9737413194444444,
+      "delta": -0.01150173611111105
+    }
+  },
+  "tight_vs_mixed": {
+    "1": {
+      "T_fixed": {
+        "conditions": 25,
+        "macro_success": 0.9228125,
+        "worst_success": 0.78515625
+      },
+      "M_fixed": {
+        "conditions": 25,
+        "macro_success": 0.9234375,
+        "worst_success": 0.78125
+      }
+    },
+    "2": {
+      "T_fixed": {
+        "conditions": 25,
+        "macro_success": 0.93125,
+        "worst_success": 0.80078125
+      },
+      "M_fixed": {
+        "conditions": 25,
+        "macro_success": 0.86640625,
+        "worst_success": 0.63671875
+      }
+    },
+    "3": {
+      "T_fixed": {
+        "conditions": 25,
+        "macro_success": 0.95140625,
+        "worst_success": 0.81640625
+      },
+      "M_fixed": {
+        "conditions": 25,
+        "macro_success": 0.95296875,
+        "worst_success": 0.8515625
+      }
+    }
+  },
+  "tasksize10": [
+    {
+      "split": "seen",
+      "role": "selected",
+      "arm": "m0",
+      "episodes": 2000,
+      "macro_pct": 86.3,
+      "worst_task_pct": 39.5,
+      "tasks_at_least_80pct": 8,
+      "terminal_depth_only_pct": 94.15,
+      "checkpoint_sha256": "9770da7e10254f1328fe6a372475de4f70c59bab7b9bf1adeab8db434601a0ce",
+      "final_reused_selected": false
+    },
+    {
+      "split": "seen",
+      "role": "selected",
+      "arm": "m1",
+      "episodes": 2000,
+      "macro_pct": 64.4,
+      "worst_task_pct": 40.0,
+      "tasks_at_least_80pct": 3,
+      "terminal_depth_only_pct": 92.5,
+      "checkpoint_sha256": "879de8c1b92215c65090cbafbc32d77bf99b964e7cc4e31a631f7ea25d2f1928",
+      "final_reused_selected": false
+    },
+    {
+      "split": "seen",
+      "role": "selected",
+      "arm": "m2",
+      "episodes": 2000,
+      "macro_pct": 79.35,
+      "worst_task_pct": 40.0,
+      "tasks_at_least_80pct": 7,
+      "terminal_depth_only_pct": 91.0,
+      "checkpoint_sha256": "5fd049f1fdcb3d3700ae158cfb23f58f225e4992c2ffd8b7cc0641aea1ca7a25",
+      "final_reused_selected": false
+    },
+    {
+      "split": "seen",
+      "role": "selected",
+      "arm": "m3",
+      "episodes": 2000,
+      "macro_pct": 60.699999999999996,
+      "worst_task_pct": 4.5,
+      "tasks_at_least_80pct": 3,
+      "terminal_depth_only_pct": 96.7,
+      "checkpoint_sha256": "b2a4307c1f644f5e5679b13abf531902da527dcf3d908409ea9c246d4c29175b",
+      "final_reused_selected": false
+    },
+    {
+      "split": "seen",
+      "role": "final",
+      "arm": "m0",
+      "episodes": 2000,
+      "macro_pct": 83.95,
+      "worst_task_pct": 34.5,
+      "tasks_at_least_80pct": 7,
+      "terminal_depth_only_pct": 92.05,
+      "checkpoint_sha256": "aa895b50e72b0febfa274c21b063cc7436910cf0e9d364e00f7b03a32fac3af3",
+      "final_reused_selected": false
+    },
+    {
+      "split": "seen",
+      "role": "final",
+      "arm": "m1",
+      "episodes": 2000,
+      "macro_pct": 68.75,
+      "worst_task_pct": 34.5,
+      "tasks_at_least_80pct": 3,
+      "terminal_depth_only_pct": 94.45,
+      "checkpoint_sha256": "92e1652eb5572660c5ad40f2ee76ce8badeb1fae0e82f012ef0d4b28a1634596",
+      "final_reused_selected": false
+    },
+    {
+      "split": "seen",
+      "role": "final",
+      "arm": "m2",
+      "episodes": 2000,
+      "macro_pct": 79.35,
+      "worst_task_pct": 40.0,
+      "tasks_at_least_80pct": 7,
+      "terminal_depth_only_pct": 91.0,
+      "checkpoint_sha256": "5fd049f1fdcb3d3700ae158cfb23f58f225e4992c2ffd8b7cc0641aea1ca7a25",
+      "final_reused_selected": true
+    },
+    {
+      "split": "seen",
+      "role": "final",
+      "arm": "m3",
+      "episodes": 2000,
+      "macro_pct": 64.9,
+      "worst_task_pct": 6.0,
+      "tasks_at_least_80pct": 4,
+      "terminal_depth_only_pct": 96.15,
+      "checkpoint_sha256": "5421a9fdf51a50566929fa35905bf2b510ca05aece83e2ee37fa87310397fef2",
+      "final_reused_selected": false
+    },
+    {
+      "split": "held_out",
+      "role": "selected",
+      "arm": "m0",
+      "episodes": 2000,
+      "macro_pct": 84.45,
+      "worst_task_pct": 41.5,
+      "tasks_at_least_80pct": 7,
+      "terminal_depth_only_pct": 94.35,
+      "checkpoint_sha256": "9770da7e10254f1328fe6a372475de4f70c59bab7b9bf1adeab8db434601a0ce",
+      "final_reused_selected": false
+    },
+    {
+      "split": "held_out",
+      "role": "selected",
+      "arm": "m1",
+      "episodes": 2000,
+      "macro_pct": 63.7,
+      "worst_task_pct": 35.0,
+      "tasks_at_least_80pct": 3,
+      "terminal_depth_only_pct": 92.6,
+      "checkpoint_sha256": "879de8c1b92215c65090cbafbc32d77bf99b964e7cc4e31a631f7ea25d2f1928",
+      "final_reused_selected": false
+    },
+    {
+      "split": "held_out",
+      "role": "selected",
+      "arm": "m2",
+      "episodes": 2000,
+      "macro_pct": 80.8,
+      "worst_task_pct": 46.0,
+      "tasks_at_least_80pct": 7,
+      "terminal_depth_only_pct": 91.9,
+      "checkpoint_sha256": "5fd049f1fdcb3d3700ae158cfb23f58f225e4992c2ffd8b7cc0641aea1ca7a25",
+      "final_reused_selected": false
+    },
+    {
+      "split": "held_out",
+      "role": "selected",
+      "arm": "m3",
+      "episodes": 2000,
+      "macro_pct": 57.45,
+      "worst_task_pct": 2.0,
+      "tasks_at_least_80pct": 3,
+      "terminal_depth_only_pct": 96.3,
+      "checkpoint_sha256": "b2a4307c1f644f5e5679b13abf531902da527dcf3d908409ea9c246d4c29175b",
+      "final_reused_selected": false
+    },
+    {
+      "split": "held_out",
+      "role": "final",
+      "arm": "m0",
+      "episodes": 2000,
+      "macro_pct": 83.95,
+      "worst_task_pct": 38.0,
+      "tasks_at_least_80pct": 7,
+      "terminal_depth_only_pct": 92.89999999999999,
+      "checkpoint_sha256": "aa895b50e72b0febfa274c21b063cc7436910cf0e9d364e00f7b03a32fac3af3",
+      "final_reused_selected": false
+    },
+    {
+      "split": "held_out",
+      "role": "final",
+      "arm": "m1",
+      "episodes": 2000,
+      "macro_pct": 68.2,
+      "worst_task_pct": 45.0,
+      "tasks_at_least_80pct": 3,
+      "terminal_depth_only_pct": 95.65,
+      "checkpoint_sha256": "92e1652eb5572660c5ad40f2ee76ce8badeb1fae0e82f012ef0d4b28a1634596",
+      "final_reused_selected": false
+    },
+    {
+      "split": "held_out",
+      "role": "final",
+      "arm": "m2",
+      "episodes": 2000,
+      "macro_pct": 80.8,
+      "worst_task_pct": 46.0,
+      "tasks_at_least_80pct": 7,
+      "terminal_depth_only_pct": 91.9,
+      "checkpoint_sha256": "5fd049f1fdcb3d3700ae158cfb23f58f225e4992c2ffd8b7cc0641aea1ca7a25",
+      "final_reused_selected": true
+    },
+    {
+      "split": "held_out",
+      "role": "final",
+      "arm": "m3",
+      "episodes": 2000,
+      "macro_pct": 62.55,
+      "worst_task_pct": 2.0,
+      "tasks_at_least_80pct": 4,
+      "terminal_depth_only_pct": 95.55,
+      "checkpoint_sha256": "5421a9fdf51a50566929fa35905bf2b510ca05aece83e2ee37fa87310397fef2",
+      "final_reused_selected": false
+    }
+  ],
+  "terminal_depth_only_warning": "Depth > .85 only; excludes lateral, no-jam and 3-step stability. Not full unbounded relaxed success.",
+  "source_sha256": {
+    "logs/size_condition_v3/20260912_01079_gpu0/campaign/summary.json": "4d5fc1dea032cd0ad917a563932ff9baf60450ff7009f740417dc958553f6f7f",
+    "logs/size_condition_v3/20260917_01079_size_ood_parameter_eval/eval/summary.json": "767e0014d5a0d314b0e72e6669ef481ea2f583503153237ca67a833272f290d5",
+    "logs/size_condition_v3/20260916_01079_tight_vs_mixed/summary.json": "ff88e7e1522dd3395a2955c22dd274bf983b89a744c145bf819970f95aae79e5",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/campaign/protocol.json": "8a2d97dddb6ef654deb15160b143708b71588249ae66069925ae4db47c89cdd1",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/seen/selected/m0/seed_82011/episodes.jsonl": "dc01eb28f5d63bd788ab128e406bc9f3c366e0efc998667916ca5d2d6fa8a41c",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/seen/selected/m0/seed_82011/result.json": "9b91e0feb25e33adecd4f2c50de6322e13ef61ea96f84699e400cd8737bc63fa",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/seen/selected/m0/seed_82012/episodes.jsonl": "845870d6703d2993ce1111fc1202028928e60086552636d372c6be30d9361871",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/seen/selected/m0/seed_82012/result.json": "995f580b4502c93dc2ba9e456a3ecf0e70c2dd92c0d260c91ef611a0d60430bb",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/seen/selected/m1/seed_82011/episodes.jsonl": "050b60012c2eb713eabad9edced88fb1cdae5ef98acc72eb23b97366cc7decbf",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/seen/selected/m1/seed_82011/result.json": "1c88a7761daba3549fd61fb209aa5b0b3bbb08cc27e84e08998351c61412e833",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/seen/selected/m1/seed_82012/episodes.jsonl": "0c0e6e3ba051850cac6c830bccb01f2cd92f773143d8bf2747d5a779b06d4da5",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/seen/selected/m1/seed_82012/result.json": "bcd81ba396126f9f414ddd9ee914a88027c6fc19ecb4cdb35453755cb93a5ef7",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/seen/selected/m2/seed_82011/episodes.jsonl": "d580a07c207fccf24c37992ed9bcfa6e9e631861c8a0c0283618e73f3344c1b0",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/seen/selected/m2/seed_82011/result.json": "5512c71ee3306f66402fc42518afa2838ed5f063bee89981649d09e0a3a46613",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/seen/selected/m2/seed_82012/episodes.jsonl": "e46ea20e00472a3c916cd9adba0b363a3fd868975555ae65158dc92a2f09d50a",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/seen/selected/m2/seed_82012/result.json": "a43afc31177e022e7bdd01bfe45e0564ea3994dcf9822e5d565fa2156e3d584e",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/seen/selected/m3/seed_82011/episodes.jsonl": "92862a210eab7359430b75eb5ffea31204aeed96bd3b3e04bdf8a31d0b2df880",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/seen/selected/m3/seed_82011/result.json": "cffb50db1a0c5eaa01f5ab3d0528b4710aa9c0f2acf1fc57b3871d204446cfd8",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/seen/selected/m3/seed_82012/episodes.jsonl": "a993df3f6cdc89aa3d3295c94ddcec702fb48e061e509d7ceced68c8aa26e956",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/seen/selected/m3/seed_82012/result.json": "47427f7506b8f9bec25347c6c697037868ef0dc82d4e9c6998aa0a274f18673a",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/seen/final/m0/seed_82011/episodes.jsonl": "31408c9d98009539f485cc65eeee2740d1efd2d5cd9acaa56dd94b1b1c76a1c8",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/seen/final/m0/seed_82011/result.json": "f517c45b6946c102f5c3a0a200075f1cdbadd00fbf88999c3813e2b6cb64d904",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/seen/final/m0/seed_82012/episodes.jsonl": "931f0823ba8c26297a41ef4f6d5726686277d5d436ed485fc8ec507aa6737a7d",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/seen/final/m0/seed_82012/result.json": "560eed91cc36ddbf0bd17963387dbec8d4a65c231a0e95fe75186ee35b625a18",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/seen/final/m1/seed_82011/episodes.jsonl": "6eabc6e38a85317f519cf4736a4b9bc5dfe33a4ce1c8e089d85afcf84799de63",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/seen/final/m1/seed_82011/result.json": "17b3d4e2e193110f1a82d90d2c57ad2c65412cac9154341b6d603bb55fa22889",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/seen/final/m1/seed_82012/episodes.jsonl": "db85baa9685f058607c76232aaa735738d59a7b11893f1fd9c2e2afab4fe32fa",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/seen/final/m1/seed_82012/result.json": "062c29007546ae5b896394925ce44fd52729aeb5ecd347fd96f2e6cb8e09d889",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/seen/final/m3/seed_82011/episodes.jsonl": "e12911a086668df6fd9d9420a38314229eed3517925d65bcf6bdbfb5120d0855",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/seen/final/m3/seed_82011/result.json": "311b73e39a7680dd7282b4fd50e825aebb3cb5b740cb2dbc41a592ab42398b4f",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/seen/final/m3/seed_82012/episodes.jsonl": "a0782cbbd1d5457666cbe5ff7d145f7abad77739c72468f4ba20f72c811ad37c",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/seen/final/m3/seed_82012/result.json": "315a888e7796c938556baedd3cf510f8270eacaa020652720a9a62b64913ee8b",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/held_out/selected/m0/seed_82011/episodes.jsonl": "9c0b9f0798994d19e9827e640fa79cde1e110a4bbf4a6462ed4964ce6b512769",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/held_out/selected/m0/seed_82011/result.json": "43e1a742aab2a30dfa27bc97be8a5539791eaf460b52250717b7f50bb0a9e53d",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/held_out/selected/m0/seed_82012/episodes.jsonl": "6f793a1aa72493310de5591489689270df4429c13fe888122733751ab1b678e7",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/held_out/selected/m0/seed_82012/result.json": "b6a97a297719517dd572f621eab0835b21f12ddf1196f259347e3ebe28dc8899",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/held_out/selected/m1/seed_82011/episodes.jsonl": "6d5f09aecf6858bf189b9ed29e15df27d832be56a8fd85d8fbfedd6d79d140a2",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/held_out/selected/m1/seed_82011/result.json": "30a69fd8fefa2e7b95c1052cb3a789066ce8f4a9f53606e37bf9370553392dd4",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/held_out/selected/m1/seed_82012/episodes.jsonl": "d6ef200b84ed53a43af0bd21ca85f7642c847ec48ba4b27a193feb4147eecc92",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/held_out/selected/m1/seed_82012/result.json": "1deb666c97789f9ce10397edb290d1bee32c3a29e8b3179409bb7dd9f2ac837d",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/held_out/selected/m2/seed_82011/episodes.jsonl": "cedd49c816645c6a14a4a05164920534da97a895e275b1b080df5867c550de4c",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/held_out/selected/m2/seed_82011/result.json": "9b5ace926d55120eacac87d8c9073912de23253e2403ea4bda01d09c761a88f2",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/held_out/selected/m2/seed_82012/episodes.jsonl": "54972a2d973a34d6cab4343b28772a689b71b0ffb3e4f426e670ef0b48f1274c",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/held_out/selected/m2/seed_82012/result.json": "a100229362d665a55916f6b7a94895d48f334fce336177dff510d1907ce67603",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/held_out/selected/m3/seed_82011/episodes.jsonl": "c2ee768b0377b8a0faa89f6cb0a2293a17feb966efabbf8abfc9d5e15f3f6177",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/held_out/selected/m3/seed_82011/result.json": "3210fd8fd0e7f26c082acefeb0bbe43c5425a1def165807578bb6c1dedb2df6c",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/held_out/selected/m3/seed_82012/episodes.jsonl": "1327b9c367b9009907c36561f706780af01532405438ca01ed7661219de2ea7e",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/held_out/selected/m3/seed_82012/result.json": "d9d0e4d61eb6859bad792cfa568dc169c84dfb849fbbb2aaf8d23470a22f99e0",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/held_out/final/m0/seed_82011/episodes.jsonl": "1d584e0781ecc31182aa49f35bc5dfbce8d2dfc63fcc5487b636dbf38ce43f96",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/held_out/final/m0/seed_82011/result.json": "67656db74db71c2afb18fee27b145c65d3473ad4c345052aa08df093a8471651",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/held_out/final/m0/seed_82012/episodes.jsonl": "2547655a8a526f9ad2a7accf8f1065ad22cb92596b70207cdd1b0b996a9a5083",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/held_out/final/m0/seed_82012/result.json": "c0b98d6ed2b76e1907b6bf62449382c04fed9e8142abb20ecff37b2b1c42d4f4",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/held_out/final/m1/seed_82011/episodes.jsonl": "1c8262f74109a87acc7552af6aa65e819cfea1f4b95d276a00008f908f5c1209",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/held_out/final/m1/seed_82011/result.json": "5040ef134dff40096c85629c7d4d02eed60a20d9dacdbc85cf14969bde59b88c",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/held_out/final/m1/seed_82012/episodes.jsonl": "7e791fbd5c3c71a0e69038b90f55a939895c38ba886f9d98fe61fc70412d45dd",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/held_out/final/m1/seed_82012/result.json": "33e65e14ead1426767c698fc83833558af287e0d7a167256127fa052bcaf49cd",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/held_out/final/m3/seed_82011/episodes.jsonl": "b981fa6f076bb666cfced7b4babbabaadf857bb0f5183e67e51159c133568a1a",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/held_out/final/m3/seed_82011/result.json": "a966ad03761c1e6f4c02c6fe2fd61deec04045f231cbe32d676a199bd652b62a",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/held_out/final/m3/seed_82012/episodes.jsonl": "bbe6b30e701c28fc6088b12fd48deb4326825b3e0b092fe316c020f74b50034f",
+    "logs/wrist_wrench_v3/tasksize10_v2_1_m0_m3_mt_true_seed1_matched_20260920_1710/evaluation/test/held_out/final/m3/seed_82012/result.json": "df555eacdbfd8bef900cf9e6065dd18598abc40b6d662adaa4f21c923c22525d"
+  }
+}

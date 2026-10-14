@@ -25,6 +25,8 @@ parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
 )
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
+parser.add_argument("--seed", type=int, default=None, help="Evaluation environment seed.")
+parser.add_argument("--deterministic", action="store_true", help="Use the policy mean action.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint.")
 parser.add_argument(
@@ -171,6 +173,9 @@ def main():
         args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
     )
     agent_cfg = load_cfg_from_registry(args_cli.task, "rl_games_cfg_entry_point")
+    if args_cli.seed is not None:
+        env_cfg.seed = args_cli.seed
+        agent_cfg["params"]["seed"] = args_cli.seed
     if args_cli.device is not None:
         agent_cfg["params"]["config"]["device"] = args_cli.device
         agent_cfg["params"]["config"]["device_name"] = args_cli.device
@@ -299,7 +304,7 @@ def main():
                 # convert obs to agent format
                 obs = agent.obs_to_torch(obs)
                 # agent stepping
-                actions = agent.get_action(obs, is_deterministic=agent.is_deterministic)
+                actions = agent.get_action(obs, is_deterministic=args_cli.deterministic or agent.is_deterministic)
                 # env stepping
                 obs, _, dones, _ = env.step(actions)
                 if socket_camera is not None:

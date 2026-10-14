@@ -1,0 +1,547 @@
+{
+  "schema": "automate10.success_definition_comparison.v1",
+  "paired_eval": "/home/gpuserver/hx/github/srsa/logs/rl_games/Assembly/faca00271_automate_paired_relaxed_eval_20260927",
+  "training_seeds": 1,
+  "eval_seeds": [
+    5101,
+    5102
+  ],
+  "episodes_per_task": 200,
+  "metrics": {
+    "official": "AutoMate episode-latched success",
+    "original_relaxed": "FACA terminal stable; height window 0<height<target; depth>=0.85; lateral/no jam; 3 steps",
+    "modified_relaxed": "FACA terminal stable; depth>0.85; lateral/no jam; 3 steps"
+  },
+  "overall": {
+    "official": 1537,
+    "original_relaxed": 276,
+    "modified_relaxed": 310,
+    "newly_counted": 34
+  },
+  "cross_run_identical": true,
+  "cross_run_checks": [],
+  "tasks": [
+    {
+      "task": "00062",
+      "episodes": 200,
+      "official": 92,
+      "original_relaxed": 0,
+      "modified_relaxed": 0,
+      "original_episode": 0,
+      "modified_episode": 0,
+      "newly_counted": 0,
+      "modified_success_depth_ge_1": 0,
+      "official_only_vs_modified": 92,
+      "modified_only_vs_official": 0,
+      "terminal_depth_gt_085": 2,
+      "terminal_original_depth_window": 0,
+      "terminal_lateral_ok": 39,
+      "terminal_contact": 188,
+      "terminal_jam": 93,
+      "terminal_depth_fail": 198,
+      "terminal_lateral_fail_after_depth": 2,
+      "terminal_stability_fail_after_process": 0,
+      "terminal_depth_ge_1": 2,
+      "depth_median": 0.43318653106689453,
+      "depth_p10": 0.14079650938510896,
+      "depth_p90": 0.46262502670288086,
+      "lateral_mm_median": 2.5526732206344604,
+      "official_ci95": [
+        0.39233051799971463,
+        0.5291771081104667
+      ],
+      "original_ci95": [
+        1.734723475976807e-18,
+        0.018845326377266575
+      ],
+      "modified_ci95": [
+        1.734723475976807e-18,
+        0.018845326377266575
+      ]
+    },
+    {
+      "task": "00186",
+      "episodes": 200,
+      "official": 193,
+      "original_relaxed": 13,
+      "modified_relaxed": 20,
+      "original_episode": 34,
+      "modified_episode": 48,
+      "newly_counted": 7,
+      "modified_success_depth_ge_1": 7,
+      "official_only_vs_modified": 173,
+      "modified_only_vs_official": 0,
+      "terminal_depth_gt_085": 187,
+      "terminal_original_depth_window": 127,
+      "terminal_lateral_ok": 24,
+      "terminal_contact": 198,
+      "terminal_jam": 57,
+      "terminal_depth_fail": 13,
+      "terminal_lateral_fail_after_depth": 166,
+      "terminal_stability_fail_after_process": 1,
+      "terminal_depth_ge_1": 60,
+      "depth_median": 0.9641944169998169,
+      "depth_p10": 0.8674585163593292,
+      "depth_p90": 1.050238800048828,
+      "lateral_mm_median": 1.579411793500185,
+      "official_ci95": [
+        0.9295293884777092,
+        0.9829444579914328
+      ],
+      "original_ci95": [
+        0.03837635464915299,
+        0.10801907929906895
+      ],
+      "modified_ci95": [
+        0.06567044866909588,
+        0.1494058124327174
+      ]
+    },
+    {
+      "task": "00256",
+      "episodes": 200,
+      "official": 128,
+      "original_relaxed": 0,
+      "modified_relaxed": 0,
+      "original_episode": 0,
+      "modified_episode": 0,
+      "newly_counted": 0,
+      "modified_success_depth_ge_1": 0,
+      "official_only_vs_modified": 128,
+      "modified_only_vs_official": 0,
+      "terminal_depth_gt_085": 104,
+      "terminal_original_depth_window": 46,
+      "terminal_lateral_ok": 0,
+      "terminal_contact": 59,
+      "terminal_jam": 25,
+      "terminal_depth_fail": 96,
+      "terminal_lateral_fail_after_depth": 104,
+      "terminal_stability_fail_after_process": 0,
+      "terminal_depth_ge_1": 58,
+      "depth_median": 0.872155487537384,
+      "depth_p10": 0.42954797446727755,
+      "depth_p90": 1.2853297591209412,
+      "lateral_mm_median": 10.13622060418129,
+      "official_ci95": [
+        0.5714152816600309,
+        0.7033080269543346
+      ],
+      "original_ci95": [
+        1.734723475976807e-18,
+        0.018845326377266575
+      ],
+      "modified_ci95": [
+        1.734723475976807e-18,
+        0.018845326377266575
+      ]
+    },
+    {
+      "task": "00271",
+      "episodes": 200,
+      "official": 196,
+      "original_relaxed": 165,
+      "modified_relaxed": 165,
+      "original_episode": 171,
+      "modified_episode": 171,
+      "newly_counted": 0,
+      "modified_success_depth_ge_1": 0,
+      "official_only_vs_modified": 31,
+      "modified_only_vs_official": 0,
+      "terminal_depth_gt_085": 186,
+      "terminal_original_depth_window": 186,
+      "terminal_lateral_ok": 172,
+      "terminal_contact": 200,
+      "terminal_jam": 4,
+      "terminal_depth_fail": 14,
+      "terminal_lateral_fail_after_depth": 21,
+      "terminal_stability_fail_after_process": 0,
+      "terminal_depth_ge_1": 0,
+      "depth_median": 0.966188907623291,
+      "depth_p10": 0.8723802506923676,
+      "depth_p90": 0.9949072897434235,
+      "lateral_mm_median": 0.38070816663093865,
+      "official_ci95": [
+        0.9497129130941735,
+        0.9921955735836505
+      ],
+      "original_ci95": [
+        0.7663556885175099,
+        0.8713948493372666
+      ],
+      "modified_ci95": [
+        0.7663556885175099,
+        0.8713948493372666
+      ]
+    },
+    {
+      "task": "00726",
+      "episodes": 200,
+      "official": 194,
+      "original_relaxed": 98,
+      "modified_relaxed": 125,
+      "original_episode": 115,
+      "modified_episode": 126,
+      "newly_counted": 27,
+      "modified_success_depth_ge_1": 26,
+      "official_only_vs_modified": 70,
+      "modified_only_vs_official": 1,
+      "terminal_depth_gt_085": 199,
+      "terminal_original_depth_window": 160,
+      "terminal_lateral_ok": 128,
+      "terminal_contact": 192,
+      "terminal_jam": 10,
+      "terminal_depth_fail": 1,
+      "terminal_lateral_fail_after_depth": 72,
+      "terminal_stability_fail_after_process": 2,
+      "terminal_depth_ge_1": 39,
+      "depth_median": 0.9725104570388794,
+      "depth_p10": 0.9427164554595947,
+      "depth_p90": 1.013126826286316,
+      "lateral_mm_median": 0.6358305690810084,
+      "official_ci95": [
+        0.9361057075454807,
+        0.9861796856598887
+      ],
+      "original_ci95": [
+        0.42156278331213176,
+        0.5588141232154135
+      ],
+      "modified_ci95": [
+        0.5561430369897816,
+        0.6891456314159018
+      ]
+    },
+    {
+      "task": "01079",
+      "episodes": 200,
+      "official": 175,
+      "original_relaxed": 0,
+      "modified_relaxed": 0,
+      "original_episode": 0,
+      "modified_episode": 0,
+      "newly_counted": 0,
+      "modified_success_depth_ge_1": 0,
+      "official_only_vs_modified": 175,
+      "modified_only_vs_official": 0,
+      "terminal_depth_gt_085": 102,
+      "terminal_original_depth_window": 88,
+      "terminal_lateral_ok": 0,
+      "terminal_contact": 48,
+      "terminal_jam": 6,
+      "terminal_depth_fail": 98,
+      "terminal_lateral_fail_after_depth": 102,
+      "terminal_stability_fail_after_process": 0,
+      "terminal_depth_ge_1": 14,
+      "depth_median": 0.8539137840270996,
+      "depth_p10": 0.47816294133663184,
+      "depth_p90": 0.9780367016792297,
+      "lateral_mm_median": 11.065144091844559,
+      "official_ci95": [
+        0.8219857499741765,
+        0.9138802552428735
+      ],
+      "original_ci95": [
+        1.734723475976807e-18,
+        0.018845326377266575
+      ],
+      "modified_ci95": [
+        1.734723475976807e-18,
+        0.018845326377266575
+      ]
+    },
+    {
+      "task": "01029",
+      "episodes": 200,
+      "official": 0,
+      "original_relaxed": 0,
+      "modified_relaxed": 0,
+      "original_episode": 0,
+      "modified_episode": 0,
+      "newly_counted": 0,
+      "modified_success_depth_ge_1": 0,
+      "official_only_vs_modified": 0,
+      "modified_only_vs_official": 0,
+      "terminal_depth_gt_085": 10,
+      "terminal_original_depth_window": 2,
+      "terminal_lateral_ok": 4,
+      "terminal_contact": 71,
+      "terminal_jam": 67,
+      "terminal_depth_fail": 190,
+      "terminal_lateral_fail_after_depth": 10,
+      "terminal_stability_fail_after_process": 0,
+      "terminal_depth_ge_1": 8,
+      "depth_median": 0.349240243434906,
+      "depth_p10": 0.31034509241580965,
+      "depth_p90": 0.6661014735698699,
+      "lateral_mm_median": 21.576356142759323,
+      "official_ci95": [
+        1.734723475976807e-18,
+        0.018845326377266575
+      ],
+      "original_ci95": [
+        1.734723475976807e-18,
+        0.018845326377266575
+      ],
+      "modified_ci95": [
+        1.734723475976807e-18,
+        0.018845326377266575
+      ]
+    },
+    {
+      "task": "01092",
+      "episodes": 200,
+      "official": 194,
+      "original_relaxed": 0,
+      "modified_relaxed": 0,
+      "original_episode": 0,
+      "modified_episode": 0,
+      "newly_counted": 0,
+      "modified_success_depth_ge_1": 0,
+      "official_only_vs_modified": 194,
+      "modified_only_vs_official": 0,
+      "terminal_depth_gt_085": 24,
+      "terminal_original_depth_window": 23,
+      "terminal_lateral_ok": 0,
+      "terminal_contact": 3,
+      "terminal_jam": 0,
+      "terminal_depth_fail": 176,
+      "terminal_lateral_fail_after_depth": 24,
+      "terminal_stability_fail_after_process": 0,
+      "terminal_depth_ge_1": 1,
+      "depth_median": 0.7356805801391602,
+      "depth_p10": 0.6408955574035644,
+      "depth_p90": 0.8526965916156769,
+      "lateral_mm_median": 12.000732123851776,
+      "official_ci95": [
+        0.9361057075454807,
+        0.9861796856598887
+      ],
+      "original_ci95": [
+        1.734723475976807e-18,
+        0.018845326377266575
+      ],
+      "modified_ci95": [
+        1.734723475976807e-18,
+        0.018845326377266575
+      ]
+    },
+    {
+      "task": "01102",
+      "episodes": 200,
+      "official": 185,
+      "original_relaxed": 0,
+      "modified_relaxed": 0,
+      "original_episode": 0,
+      "modified_episode": 0,
+      "newly_counted": 0,
+      "modified_success_depth_ge_1": 0,
+      "official_only_vs_modified": 185,
+      "modified_only_vs_official": 0,
+      "terminal_depth_gt_085": 14,
+      "terminal_original_depth_window": 7,
+      "terminal_lateral_ok": 0,
+      "terminal_contact": 92,
+      "terminal_jam": 10,
+      "terminal_depth_fail": 186,
+      "terminal_lateral_fail_after_depth": 14,
+      "terminal_stability_fail_after_process": 0,
+      "terminal_depth_ge_1": 7,
+      "depth_median": 0.48233315348625183,
+      "depth_p10": 0.31608128547668457,
+      "depth_p90": 0.6976524412631988,
+      "lateral_mm_median": 9.603927843272686,
+      "official_ci95": [
+        0.8799563897637055,
+        0.954025082815618
+      ],
+      "original_ci95": [
+        1.734723475976807e-18,
+        0.018845326377266575
+      ],
+      "modified_ci95": [
+        1.734723475976807e-18,
+        0.018845326377266575
+      ]
+    },
+    {
+      "task": "01125",
+      "episodes": 200,
+      "official": 180,
+      "original_relaxed": 0,
+      "modified_relaxed": 0,
+      "original_episode": 0,
+      "modified_episode": 0,
+      "newly_counted": 0,
+      "modified_success_depth_ge_1": 0,
+      "official_only_vs_modified": 180,
+      "modified_only_vs_official": 0,
+      "terminal_depth_gt_085": 50,
+      "terminal_original_depth_window": 23,
+      "terminal_lateral_ok": 0,
+      "terminal_contact": 110,
+      "terminal_jam": 12,
+      "terminal_depth_fail": 150,
+      "terminal_lateral_fail_after_depth": 50,
+      "terminal_stability_fail_after_process": 0,
+      "terminal_depth_ge_1": 27,
+      "depth_median": 0.6317459344863892,
+      "depth_p10": 0.2701934188604355,
+      "depth_p90": 1.0269306540489196,
+      "lateral_mm_median": 9.970219805836678,
+      "official_ci95": [
+        0.8505941875672826,
+        0.9343295513309041
+      ],
+      "original_ci95": [
+        1.734723475976807e-18,
+        0.018845326377266575
+      ],
+      "modified_ci95": [
+        1.734723475976807e-18,
+        0.018845326377266575
+      ]
+    }
+  ],
+  "by_seed": [
+    {
+      "task": "00062",
+      "seed": 5101,
+      "official": 45,
+      "original_relaxed": 0,
+      "modified_relaxed": 0
+    },
+    {
+      "task": "00062",
+      "seed": 5102,
+      "official": 47,
+      "original_relaxed": 0,
+      "modified_relaxed": 0
+    },
+    {
+      "task": "00186",
+      "seed": 5101,
+      "official": 97,
+      "original_relaxed": 5,
+      "modified_relaxed": 8
+    },
+    {
+      "task": "00186",
+      "seed": 5102,
+      "official": 96,
+      "original_relaxed": 8,
+      "modified_relaxed": 12
+    },
+    {
+      "task": "00256",
+      "seed": 5101,
+      "official": 63,
+      "original_relaxed": 0,
+      "modified_relaxed": 0
+    },
+    {
+      "task": "00256",
+      "seed": 5102,
+      "official": 65,
+      "original_relaxed": 0,
+      "modified_relaxed": 0
+    },
+    {
+      "task": "00271",
+      "seed": 5101,
+      "official": 99,
+      "original_relaxed": 83,
+      "modified_relaxed": 83
+    },
+    {
+      "task": "00271",
+      "seed": 5102,
+      "official": 97,
+      "original_relaxed": 82,
+      "modified_relaxed": 82
+    },
+    {
+      "task": "00726",
+      "seed": 5101,
+      "official": 96,
+      "original_relaxed": 49,
+      "modified_relaxed": 62
+    },
+    {
+      "task": "00726",
+      "seed": 5102,
+      "official": 98,
+      "original_relaxed": 49,
+      "modified_relaxed": 63
+    },
+    {
+      "task": "01079",
+      "seed": 5101,
+      "official": 87,
+      "original_relaxed": 0,
+      "modified_relaxed": 0
+    },
+    {
+      "task": "01079",
+      "seed": 5102,
+      "official": 88,
+      "original_relaxed": 0,
+      "modified_relaxed": 0
+    },
+    {
+      "task": "01029",
+      "seed": 5101,
+      "official": 0,
+      "original_relaxed": 0,
+      "modified_relaxed": 0
+    },
+    {
+      "task": "01029",
+      "seed": 5102,
+      "official": 0,
+      "original_relaxed": 0,
+      "modified_relaxed": 0
+    },
+    {
+      "task": "01092",
+      "seed": 5101,
+      "official": 98,
+      "original_relaxed": 0,
+      "modified_relaxed": 0
+    },
+    {
+      "task": "01092",
+      "seed": 5102,
+      "official": 96,
+      "original_relaxed": 0,
+      "modified_relaxed": 0
+    },
+    {
+      "task": "01102",
+      "seed": 5101,
+      "official": 93,
+      "original_relaxed": 0,
+      "modified_relaxed": 0
+    },
+    {
+      "task": "01102",
+      "seed": 5102,
+      "official": 92,
+      "original_relaxed": 0,
+      "modified_relaxed": 0
+    },
+    {
+      "task": "01125",
+      "seed": 5101,
+      "official": 92,
+      "original_relaxed": 0,
+      "modified_relaxed": 0
+    },
+    {
+      "task": "01125",
+      "seed": 5102,
+      "official": 88,
+      "original_relaxed": 0,
+      "modified_relaxed": 0
+    }
+  ]
+}

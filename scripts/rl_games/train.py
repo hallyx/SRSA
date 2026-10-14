@@ -27,6 +27,8 @@ parser.add_argument("--checkpoint", type=str, default=None, help="Path to model 
 parser.add_argument("--load_mode", type=str, default='all', help="Mode to load checkpoint for fine-tuning.")
 parser.add_argument("--sigma", type=str, default=None, help="The policy's initial standard deviation.")
 parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy training iterations.")
+parser.add_argument("--minibatch_size", type=int, default=None, help="PPO minibatch size.")
+parser.add_argument("--central_value_minibatch_size", type=int, default=None, help="Central value minibatch size.")
 parser.add_argument("--experiment_name", type=str, default=None, help="Override RL-Games experiment/run directory name.")
 
 # append AppLauncher cli args
@@ -112,6 +114,25 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     agent_cfg["params"]["config"]["max_epochs"] = (
         args_cli.max_iterations if args_cli.max_iterations is not None else agent_cfg["params"]["config"]["max_epochs"]
     )
+    if args_cli.minibatch_size is not None:
+        batch_size = env_cfg.scene.num_envs * agent_cfg["params"]["config"]["horizon_length"]
+        seq_length = agent_cfg["params"]["config"].get("seq_length", 1)
+        if args_cli.minibatch_size <= 0 or batch_size % args_cli.minibatch_size or args_cli.minibatch_size % seq_length:
+            raise ValueError(
+                f"minibatch_size={args_cli.minibatch_size} must divide rollout batch={batch_size} "
+                f"and be divisible by seq_length={seq_length}"
+            )
+        agent_cfg["params"]["config"]["minibatch_size"] = args_cli.minibatch_size
+    if args_cli.central_value_minibatch_size is not None:
+        batch_size = env_cfg.scene.num_envs * agent_cfg["params"]["config"]["horizon_length"]
+        if args_cli.central_value_minibatch_size <= 0 or batch_size % args_cli.central_value_minibatch_size:
+            raise ValueError(
+                f"central_value_minibatch_size={args_cli.central_value_minibatch_size} "
+                f"must divide rollout batch={batch_size}"
+            )
+        agent_cfg["params"]["config"]["central_value_config"]["minibatch_size"] = (
+            args_cli.central_value_minibatch_size
+        )
     if args_cli.experiment_name is not None:
         agent_cfg["params"]["config"]["full_experiment_name"] = args_cli.experiment_name
     if args_cli.checkpoint is not None:

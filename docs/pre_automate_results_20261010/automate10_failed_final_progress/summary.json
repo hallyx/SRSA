@@ -1,0 +1,2332 @@
+{
+  "definition": "Failure iff terminal relaxed_success_stable=0; progress=raw terminal depth fraction, not clipped.",
+  "quantile_method": "numpy linear; sample standard deviation ddof=1",
+  "aggregation": "Pooled episodes; different tasks have different failure counts. Not task-macro progress.",
+  "sources": [
+    {
+      "task": "00062",
+      "seed": 5101,
+      "path": "/home/gpuserver/hx/github/srsa/logs/rl_games/Assembly/faca00271_automate_paired_relaxed_eval_20260927/00062_seed5101.h5",
+      "sha256": "63fe195d9bf852e48f1c3cbeabe592d420687548d00da78f3bfaf2dbd7fc24d9"
+    },
+    {
+      "task": "00062",
+      "seed": 5102,
+      "path": "/home/gpuserver/hx/github/srsa/logs/rl_games/Assembly/faca00271_automate_paired_relaxed_eval_20260927/00062_seed5102.h5",
+      "sha256": "45e42c44a184ce2ed6f5bbffaa38a17c52b6f80c3e5649afafe00c23a2700051"
+    },
+    {
+      "task": "00186",
+      "seed": 5101,
+      "path": "/home/gpuserver/hx/github/srsa/logs/rl_games/Assembly/faca00271_automate_paired_relaxed_eval_20260927/00186_seed5101.h5",
+      "sha256": "82cb919c1d20cf0acc280d98b0682e436cd50ff26b422368cd999ce024023494"
+    },
+    {
+      "task": "00186",
+      "seed": 5102,
+      "path": "/home/gpuserver/hx/github/srsa/logs/rl_games/Assembly/faca00271_automate_paired_relaxed_eval_20260927/00186_seed5102.h5",
+      "sha256": "eb39f8ce7dbfca6ec5ea1fbe824cb948a2d9a83c56183848a58cf08f0a0c3838"
+    },
+    {
+      "task": "00256",
+      "seed": 5101,
+      "path": "/home/gpuserver/hx/github/srsa/logs/rl_games/Assembly/faca00271_automate_paired_relaxed_eval_20260927/00256_seed5101.h5",
+      "sha256": "4656baa52661636102a6be4e08e4a15d0192225e25a2a285f74a78261a63c34c"
+    },
+    {
+      "task": "00256",
+      "seed": 5102,
+      "path": "/home/gpuserver/hx/github/srsa/logs/rl_games/Assembly/faca00271_automate_paired_relaxed_eval_20260927/00256_seed5102.h5",
+      "sha256": "f42a4ef44fbb6f723d41d24ec8c0e7924385d38bb4a9e687b9f050e616ddd67e"
+    },
+    {
+      "task": "00271",
+      "seed": 5101,
+      "path": "/home/gpuserver/hx/github/srsa/logs/rl_games/Assembly/faca00271_automate_paired_relaxed_eval_20260927/00271_seed5101.h5",
+      "sha256": "669937e1ac2c854e6e557e05aa50f5eabd1eeb1aabf0efb2b7c5648304be989a"
+    },
+    {
+      "task": "00271",
+      "seed": 5102,
+      "path": "/home/gpuserver/hx/github/srsa/logs/rl_games/Assembly/faca00271_automate_paired_relaxed_eval_20260927/00271_seed5102.h5",
+      "sha256": "faea45d88818030debdf4654d68d18b95b78d39d01e9896a12b1cf537fd84f10"
+    },
+    {
+      "task": "00726",
+      "seed": 5101,
+      "path": "/home/gpuserver/hx/github/srsa/logs/rl_games/Assembly/faca00271_automate_paired_relaxed_eval_20260927/00726_seed5101.h5",
+      "sha256": "ba5a6fb730a859c4934e37b372dc982aa1671177fe0ff9668717f3ed4ab5cd85"
+    },
+    {
+      "task": "00726",
+      "seed": 5102,
+      "path": "/home/gpuserver/hx/github/srsa/logs/rl_games/Assembly/faca00271_automate_paired_relaxed_eval_20260927/00726_seed5102.h5",
+      "sha256": "0ec96f35db01cc932f770f54c6f2c7004621aaef9cfa89a01f27302aa825b8ec"
+    },
+    {
+      "task": "01079",
+      "seed": 5101,
+      "path": "/home/gpuserver/hx/github/srsa/logs/rl_games/Assembly/faca00271_automate_paired_relaxed_eval_20260927/01079_seed5101.h5",
+      "sha256": "6875c555f84daac9ab8587cc9aea5872e9d983f0d391c5c0df47644eea940558"
+    },
+    {
+      "task": "01079",
+      "seed": 5102,
+      "path": "/home/gpuserver/hx/github/srsa/logs/rl_games/Assembly/faca00271_automate_paired_relaxed_eval_20260927/01079_seed5102.h5",
+      "sha256": "baa84026c4acda95acba13db414852e59b0a47ca5a6cec9830a14e04435e7c56"
+    },
+    {
+      "task": "01029",
+      "seed": 5101,
+      "path": "/home/gpuserver/hx/github/srsa/logs/rl_games/Assembly/faca00271_automate_paired_relaxed_eval_20260927/01029_seed5101.h5",
+      "sha256": "b1a340be820c190109d7bb685f5a24ae9674cd4dbc9a2bac9a26243d66ffeb57"
+    },
+    {
+      "task": "01029",
+      "seed": 5102,
+      "path": "/home/gpuserver/hx/github/srsa/logs/rl_games/Assembly/faca00271_automate_paired_relaxed_eval_20260927/01029_seed5102.h5",
+      "sha256": "375e269b214777b199a48745beb65d3abf9ee1f3dd92ece8a9c9f49e99b4a835"
+    },
+    {
+      "task": "01092",
+      "seed": 5101,
+      "path": "/home/gpuserver/hx/github/srsa/logs/rl_games/Assembly/faca00271_automate_paired_relaxed_eval_20260927/01092_seed5101.h5",
+      "sha256": "38d713ad45761482c67217e54a2f5366ffa81f3307f06e49601119c480fcaf0f"
+    },
+    {
+      "task": "01092",
+      "seed": 5102,
+      "path": "/home/gpuserver/hx/github/srsa/logs/rl_games/Assembly/faca00271_automate_paired_relaxed_eval_20260927/01092_seed5102.h5",
+      "sha256": "ea41296a5d7f42556130f2cb802d7a9b14653e68261015470f11c4360f5dacc7"
+    },
+    {
+      "task": "01102",
+      "seed": 5101,
+      "path": "/home/gpuserver/hx/github/srsa/logs/rl_games/Assembly/faca00271_automate_paired_relaxed_eval_20260927/01102_seed5101.h5",
+      "sha256": "8eb98e543292899e8297222a5cfb95d4c3b466a40f48a6a14d970fd7e26fbc22"
+    },
+    {
+      "task": "01102",
+      "seed": 5102,
+      "path": "/home/gpuserver/hx/github/srsa/logs/rl_games/Assembly/faca00271_automate_paired_relaxed_eval_20260927/01102_seed5102.h5",
+      "sha256": "afd8103c98bbaeb696acd26d2b5b36bf3329b994332e819557a7a6e207ed4546"
+    },
+    {
+      "task": "01125",
+      "seed": 5101,
+      "path": "/home/gpuserver/hx/github/srsa/logs/rl_games/Assembly/faca00271_automate_paired_relaxed_eval_20260927/01125_seed5101.h5",
+      "sha256": "9d71fa619cbfd3e05ed9ca8106283f8f1d5062305d86a72d5e02be07c58d45af"
+    },
+    {
+      "task": "01125",
+      "seed": 5102,
+      "path": "/home/gpuserver/hx/github/srsa/logs/rl_games/Assembly/faca00271_automate_paired_relaxed_eval_20260927/01125_seed5102.h5",
+      "sha256": "504dd697b5a16441c1855202040d49c36cd60b161aaddda5b8712d139f6be9d4"
+    }
+  ],
+  "tasks": [
+    {
+      "task": "00062",
+      "seed": "pooled",
+      "episodes": 200,
+      "successes": 0,
+      "failures": 200,
+      "failed_depth": {
+        "n": 200,
+        "mean": 0.3873498226329684,
+        "sample_std": 0.30088229742005,
+        "min": 0.0,
+        "max": 3.7768023014068604,
+        "p10": 0.14079650938510896,
+        "p25": 0.31145475059747696,
+        "median": 0.43318653106689453,
+        "p75": 0.4559388980269432,
+        "p90": 0.46262502670288086
+      },
+      "successful_depth": {
+        "n": 0,
+        "mean": null,
+        "sample_std": null,
+        "min": null,
+        "p10": null,
+        "p25": null,
+        "median": null,
+        "p75": null,
+        "p90": null,
+        "max": null
+      },
+      "all_depth": {
+        "n": 200,
+        "mean": 0.3873498226329684,
+        "sample_std": 0.30088229742005,
+        "min": 0.0,
+        "max": 3.7768023014068604,
+        "p10": 0.14079650938510896,
+        "p25": 0.31145475059747696,
+        "median": 0.43318653106689453,
+        "p75": 0.4559388980269432,
+        "p90": 0.46262502670288086
+      },
+      "depth_bands": {
+        "le_0p5": 198,
+        "gt_0p5_le_0p85": 0,
+        "gt_0p85_lt_1": 0,
+        "ge_1": 2
+      },
+      "failure_categories": {
+        "depth_not_met": 198,
+        "lateral_after_depth": 2,
+        "jam_after_depth_lateral": 0,
+        "terminal_process_not_stable": 0
+      },
+      "failed_lateral_mm": {
+        "n": 200,
+        "mean": 16.838488177272666,
+        "sample_std": 85.60073215571647,
+        "min": 0.10756483243312687,
+        "max": 1074.8291015625,
+        "p10": 0.6974512420129031,
+        "p25": 1.2874484527856112,
+        "median": 2.5526732206344604,
+        "p75": 17.286638729274273,
+        "p90": 24.529794044792652
+      },
+      "failed_official_success": 92.0,
+      "failed_ever_stable": 0.0,
+      "failed_jam": 93.0,
+      "failed_depth_gt_2": 2
+    },
+    {
+      "task": "00186",
+      "seed": "pooled",
+      "episodes": 200,
+      "successes": 20,
+      "failures": 180,
+      "failed_depth": {
+        "n": 180,
+        "mean": 0.9368406930731402,
+        "sample_std": 0.1538368924801141,
+        "min": 0.0,
+        "max": 1.1948846578598022,
+        "p10": 0.8658229589462281,
+        "p25": 0.9083383828401566,
+        "median": 0.9633294641971588,
+        "p75": 1.0070154666900635,
+        "p90": 1.0494590044021606
+      },
+      "successful_depth": {
+        "n": 20,
+        "mean": 0.980844697356224,
+        "sample_std": 0.07019665436101122,
+        "min": 0.8637298345565796,
+        "max": 1.0900275707244873,
+        "p10": 0.8997234761714935,
+        "p25": 0.936861589550972,
+        "median": 0.9679028987884521,
+        "p75": 1.0463777780532837,
+        "p90": 1.0802470088005065
+      },
+      "all_depth": {
+        "n": 200,
+        "mean": 0.9412410935014486,
+        "sample_std": 0.1480977284425712,
+        "min": 0.0,
+        "max": 1.1948846578598022,
+        "p10": 0.8674585163593292,
+        "p25": 0.910823404788971,
+        "median": 0.9641944468021393,
+        "p75": 1.0091170072555542,
+        "p90": 1.050238800048828
+      },
+      "depth_bands": {
+        "le_0p5": 7,
+        "gt_0p5_le_0p85": 6,
+        "gt_0p85_lt_1": 114,
+        "ge_1": 53
+      },
+      "failure_categories": {
+        "depth_not_met": 13,
+        "lateral_after_depth": 166,
+        "jam_after_depth_lateral": 0,
+        "terminal_process_not_stable": 1
+      },
+      "failed_lateral_mm": {
+        "n": 180,
+        "mean": 1.5570570567635715,
+        "sample_std": 0.5272835884930233,
+        "min": 0.3336504159960896,
+        "max": 7.902920246124268,
+        "p10": 1.1759800370782614,
+        "p25": 1.4741532213520259,
+        "median": 1.6012207488529384,
+        "p75": 1.649596932111308,
+        "p90": 1.689446298405528
+      },
+      "failed_official_success": 173.0,
+      "failed_ever_stable": 28.0,
+      "failed_jam": 57.0,
+      "failed_depth_gt_2": 0
+    },
+    {
+      "task": "00256",
+      "seed": "pooled",
+      "episodes": 200,
+      "successes": 0,
+      "failures": 200,
+      "failed_depth": {
+        "n": 200,
+        "mean": 1.0047289544716478,
+        "sample_std": 1.3998218413768404,
+        "min": 0.09678497165441513,
+        "max": 12.23770523071289,
+        "p10": 0.42954797446727755,
+        "p25": 0.556786060333252,
+        "median": 0.872155487537384,
+        "p75": 1.0312325954437256,
+        "p90": 1.2853297591209412
+      },
+      "successful_depth": {
+        "n": 0,
+        "mean": null,
+        "sample_std": null,
+        "min": null,
+        "p10": null,
+        "p25": null,
+        "median": null,
+        "p75": null,
+        "p90": null,
+        "max": null
+      },
+      "all_depth": {
+        "n": 200,
+        "mean": 1.0047289544716478,
+        "sample_std": 1.3998218413768404,
+        "min": 0.09678497165441513,
+        "max": 12.23770523071289,
+        "p10": 0.42954797446727755,
+        "p25": 0.556786060333252,
+        "median": 0.872155487537384,
+        "p75": 1.0312325954437256,
+        "p90": 1.2853297591209412
+      },
+      "depth_bands": {
+        "le_0p5": 36,
+        "gt_0p5_le_0p85": 60,
+        "gt_0p85_lt_1": 46,
+        "ge_1": 58
+      },
+      "failure_categories": {
+        "depth_not_met": 96,
+        "lateral_after_depth": 104,
+        "jam_after_depth_lateral": 0,
+        "terminal_process_not_stable": 0
+      },
+      "failed_lateral_mm": {
+        "n": 200,
+        "mean": 13.695743080461398,
+        "sample_std": 29.1832971875846,
+        "min": 3.582561621442437,
+        "max": 380.2609443664551,
+        "p10": 10.00027172267437,
+        "p25": 10.043441317975521,
+        "median": 10.13622060418129,
+        "p75": 10.370912496000528,
+        "p90": 12.054980080574751
+      },
+      "failed_official_success": 128.0,
+      "failed_ever_stable": 0.0,
+      "failed_jam": 25.0,
+      "failed_depth_gt_2": 4
+    },
+    {
+      "task": "00271",
+      "seed": "pooled",
+      "episodes": 200,
+      "successes": 165,
+      "failures": 35,
+      "failed_depth": {
+        "n": 35,
+        "mean": 0.7907829601849828,
+        "sample_std": 0.28183749797420204,
+        "min": 0.0,
+        "max": 0.9626615643501282,
+        "p10": 0.3408411800861361,
+        "p25": 0.8082813322544098,
+        "median": 0.8785296082496643,
+        "p75": 0.9449923634529114,
+        "p90": 0.9555494308471679
+      },
+      "successful_depth": {
+        "n": 165,
+        "mean": 0.9637623338988333,
+        "sample_std": 0.033528744425365756,
+        "min": 0.8580081462860107,
+        "max": 0.9996585845947266,
+        "p10": 0.9102395534515381,
+        "p25": 0.9499204158782959,
+        "median": 0.9761160016059875,
+        "p75": 0.9882345795631409,
+        "p90": 0.99572674036026
+      },
+      "all_depth": {
+        "n": 200,
+        "mean": 0.9334909434989095,
+        "sample_std": 0.13725704077929143,
+        "min": 0.0,
+        "max": 0.9996585845947266,
+        "p10": 0.8723802506923676,
+        "p25": 0.9267636984586716,
+        "median": 0.9661889374256134,
+        "p75": 0.9858662635087967,
+        "p90": 0.9949072897434235
+      },
+      "depth_bands": {
+        "le_0p5": 4,
+        "gt_0p5_le_0p85": 10,
+        "gt_0p85_lt_1": 21,
+        "ge_1": 0
+      },
+      "failure_categories": {
+        "depth_not_met": 14,
+        "lateral_after_depth": 21,
+        "jam_after_depth_lateral": 0,
+        "terminal_process_not_stable": 0
+      },
+      "failed_lateral_mm": {
+        "n": 35,
+        "mean": 1.8622142200391474,
+        "sample_std": 2.5589566647394117,
+        "min": 0.02590876101749018,
+        "max": 14.537262730300426,
+        "p10": 0.47302378225140285,
+        "p25": 1.036620931699872,
+        "median": 1.3004302745684981,
+        "p75": 1.621393661480397,
+        "p90": 2.3207921534776697
+      },
+      "failed_official_success": 31.0,
+      "failed_ever_stable": 6.0,
+      "failed_jam": 4.0,
+      "failed_depth_gt_2": 0
+    },
+    {
+      "task": "00726",
+      "seed": "pooled",
+      "episodes": 200,
+      "successes": 125,
+      "failures": 75,
+      "failed_depth": {
+        "n": 75,
+        "mean": 1.0475677808125814,
+        "sample_std": 0.5772168776929602,
+        "min": 0.6412690281867981,
+        "max": 5.930413722991943,
+        "p10": 0.9393707871437073,
+        "p25": 0.9475452899932861,
+        "median": 0.9680081009864807,
+        "p75": 0.9933536648750305,
+        "p90": 1.040866780281067
+      },
+      "successful_depth": {
+        "n": 125,
+        "mean": 0.9774537405967713,
+        "sample_std": 0.026515322509641327,
+        "min": 0.9247881174087524,
+        "max": 1.0820515155792236,
+        "p10": 0.9463486552238465,
+        "p25": 0.9597730040550232,
+        "median": 0.973866879940033,
+        "p75": 0.9988149404525757,
+        "p90": 1.006934642791748
+      },
+      "all_depth": {
+        "n": 200,
+        "mean": 1.0037465056777,
+        "sample_std": 0.3542483456964578,
+        "min": 0.6412690281867981,
+        "max": 5.930413722991943,
+        "p10": 0.9427164554595947,
+        "p25": 0.9547177851200104,
+        "median": 0.972510427236557,
+        "p75": 0.9966549128293991,
+        "p90": 1.013126826286316
+      },
+      "depth_bands": {
+        "le_0p5": 0,
+        "gt_0p5_le_0p85": 1,
+        "gt_0p85_lt_1": 61,
+        "ge_1": 13
+      },
+      "failure_categories": {
+        "depth_not_met": 1,
+        "lateral_after_depth": 72,
+        "jam_after_depth_lateral": 0,
+        "terminal_process_not_stable": 2
+      },
+      "failed_lateral_mm": {
+        "n": 75,
+        "mean": 7.740710681149115,
+        "sample_std": 42.667422205056845,
+        "min": 0.5852074245922267,
+        "max": 371.9744682312012,
+        "p10": 1.5699200332164764,
+        "p25": 1.7597752739675343,
+        "median": 2.4512894451618195,
+        "p75": 3.040313022211194,
+        "p90": 4.526749253273014
+      },
+      "failed_official_success": 70.0,
+      "failed_ever_stable": 1.0,
+      "failed_jam": 10.0,
+      "failed_depth_gt_2": 1
+    },
+    {
+      "task": "01079",
+      "seed": "pooled",
+      "episodes": 200,
+      "successes": 0,
+      "failures": 200,
+      "failed_depth": {
+        "n": 200,
+        "mean": 0.8351997824385762,
+        "sample_std": 0.5756506782150027,
+        "min": 0.0,
+        "max": 8.35150146484375,
+        "p10": 0.47816294133663184,
+        "p25": 0.7638902962207794,
+        "median": 0.853913813829422,
+        "p75": 0.9277229905128479,
+        "p90": 0.9780367016792297
+      },
+      "successful_depth": {
+        "n": 0,
+        "mean": null,
+        "sample_std": null,
+        "min": null,
+        "p10": null,
+        "p25": null,
+        "median": null,
+        "p75": null,
+        "p90": null,
+        "max": null
+      },
+      "all_depth": {
+        "n": 200,
+        "mean": 0.8351997824385762,
+        "sample_std": 0.5756506782150027,
+        "min": 0.0,
+        "max": 8.35150146484375,
+        "p10": 0.47816294133663184,
+        "p25": 0.7638902962207794,
+        "median": 0.853913813829422,
+        "p75": 0.9277229905128479,
+        "p90": 0.9780367016792297
+      },
+      "depth_bands": {
+        "le_0p5": 23,
+        "gt_0p5_le_0p85": 75,
+        "gt_0p85_lt_1": 88,
+        "ge_1": 14
+      },
+      "failure_categories": {
+        "depth_not_met": 98,
+        "lateral_after_depth": 102,
+        "jam_after_depth_lateral": 0,
+        "terminal_process_not_stable": 0
+      },
+      "failed_lateral_mm": {
+        "n": 200,
+        "mean": 13.955606657546014,
+        "sample_std": 29.02876514103524,
+        "min": 7.548673544079065,
+        "max": 402.8034806251526,
+        "p10": 10.718853026628494,
+        "p25": 10.869949124753475,
+        "median": 11.065143626183271,
+        "p75": 11.786527466028929,
+        "p90": 12.561189290136099
+      },
+      "failed_official_success": 175.0,
+      "failed_ever_stable": 0.0,
+      "failed_jam": 6.0,
+      "failed_depth_gt_2": 1
+    },
+    {
+      "task": "01029",
+      "seed": "pooled",
+      "episodes": 200,
+      "successes": 0,
+      "failures": 200,
+      "failed_depth": {
+        "n": 200,
+        "mean": 0.5131711048260331,
+        "sample_std": 0.8221142721337359,
+        "min": 0.0,
+        "max": 7.430126667022705,
+        "p10": 0.31034509241580965,
+        "p25": 0.33481336385011673,
+        "median": 0.349240243434906,
+        "p75": 0.37982579320669174,
+        "p90": 0.6661014735698699
+      },
+      "successful_depth": {
+        "n": 0,
+        "mean": null,
+        "sample_std": null,
+        "min": null,
+        "p10": null,
+        "p25": null,
+        "median": null,
+        "p75": null,
+        "p90": null,
+        "max": null
+      },
+      "all_depth": {
+        "n": 200,
+        "mean": 0.5131711048260331,
+        "sample_std": 0.8221142721337359,
+        "min": 0.0,
+        "max": 7.430126667022705,
+        "p10": 0.31034509241580965,
+        "p25": 0.33481336385011673,
+        "median": 0.349240243434906,
+        "p75": 0.37982579320669174,
+        "p90": 0.6661014735698699
+      },
+      "depth_bands": {
+        "le_0p5": 168,
+        "gt_0p5_le_0p85": 22,
+        "gt_0p85_lt_1": 2,
+        "ge_1": 8
+      },
+      "failure_categories": {
+        "depth_not_met": 190,
+        "lateral_after_depth": 10,
+        "jam_after_depth_lateral": 0,
+        "terminal_process_not_stable": 0
+      },
+      "failed_lateral_mm": {
+        "n": 200,
+        "mean": 31.935777364415117,
+        "sample_std": 63.39744822277584,
+        "min": 0.32893504248932004,
+        "max": 621.9031810760498,
+        "p10": 16.603597532957796,
+        "p25": 18.881510477513075,
+        "median": 21.576356142759323,
+        "p75": 24.039783515036106,
+        "p90": 31.126788817346092
+      },
+      "failed_official_success": 0.0,
+      "failed_ever_stable": 0.0,
+      "failed_jam": 67.0,
+      "failed_depth_gt_2": 4
+    },
+    {
+      "task": "01092",
+      "seed": "pooled",
+      "episodes": 200,
+      "successes": 0,
+      "failures": 200,
+      "failed_depth": {
+        "n": 200,
+        "mean": 0.7436613930761814,
+        "sample_std": 0.09212323619656336,
+        "min": 0.4339783489704132,
+        "max": 1.2322579622268677,
+        "p10": 0.6408955574035644,
+        "p25": 0.6818764358758926,
+        "median": 0.7356805503368378,
+        "p75": 0.7983383387327194,
+        "p90": 0.8526965916156769
+      },
+      "successful_depth": {
+        "n": 0,
+        "mean": null,
+        "sample_std": null,
+        "min": null,
+        "p10": null,
+        "p25": null,
+        "median": null,
+        "p75": null,
+        "p90": null,
+        "max": null
+      },
+      "all_depth": {
+        "n": 200,
+        "mean": 0.7436613930761814,
+        "sample_std": 0.09212323619656336,
+        "min": 0.4339783489704132,
+        "max": 1.2322579622268677,
+        "p10": 0.6408955574035644,
+        "p25": 0.6818764358758926,
+        "median": 0.7356805503368378,
+        "p75": 0.7983383387327194,
+        "p90": 0.8526965916156769
+      },
+      "depth_bands": {
+        "le_0p5": 1,
+        "gt_0p5_le_0p85": 175,
+        "gt_0p85_lt_1": 23,
+        "ge_1": 1
+      },
+      "failure_categories": {
+        "depth_not_met": 176,
+        "lateral_after_depth": 24,
+        "jam_after_depth_lateral": 0,
+        "terminal_process_not_stable": 0
+      },
+      "failed_lateral_mm": {
+        "n": 200,
+        "mean": 12.256685825996101,
+        "sample_std": 0.5891863436993209,
+        "min": 11.724905110895634,
+        "max": 15.765875577926636,
+        "p10": 11.878469865769148,
+        "p25": 11.924029793590307,
+        "median": 12.000732123851776,
+        "p75": 12.364147463813424,
+        "p90": 12.969601806253195
+      },
+      "failed_official_success": 194.0,
+      "failed_ever_stable": 0.0,
+      "failed_jam": 0.0,
+      "failed_depth_gt_2": 0
+    },
+    {
+      "task": "01102",
+      "seed": "pooled",
+      "episodes": 200,
+      "successes": 0,
+      "failures": 200,
+      "failed_depth": {
+        "n": 200,
+        "mean": 0.5676188246905803,
+        "sample_std": 0.556281421434961,
+        "min": 0.0,
+        "max": 5.092547416687012,
+        "p10": 0.31608128547668457,
+        "p25": 0.39434874057769775,
+        "median": 0.48233315348625183,
+        "p75": 0.5885680317878723,
+        "p90": 0.6976524412631988
+      },
+      "successful_depth": {
+        "n": 0,
+        "mean": null,
+        "sample_std": null,
+        "min": null,
+        "p10": null,
+        "p25": null,
+        "median": null,
+        "p75": null,
+        "p90": null,
+        "max": null
+      },
+      "all_depth": {
+        "n": 200,
+        "mean": 0.5676188246905803,
+        "sample_std": 0.556281421434961,
+        "min": 0.0,
+        "max": 5.092547416687012,
+        "p10": 0.31608128547668457,
+        "p25": 0.39434874057769775,
+        "median": 0.48233315348625183,
+        "p75": 0.5885680317878723,
+        "p90": 0.6976524412631988
+      },
+      "depth_bands": {
+        "le_0p5": 113,
+        "gt_0p5_le_0p85": 73,
+        "gt_0p85_lt_1": 7,
+        "ge_1": 7
+      },
+      "failure_categories": {
+        "depth_not_met": 186,
+        "lateral_after_depth": 14,
+        "jam_after_depth_lateral": 0,
+        "terminal_process_not_stable": 0
+      },
+      "failed_lateral_mm": {
+        "n": 200,
+        "mean": 16.14316037390381,
+        "sample_std": 65.67669543059415,
+        "min": 8.374862372875214,
+        "max": 923.3644604682922,
+        "p10": 8.575316052883863,
+        "p25": 8.897230727598071,
+        "median": 9.603927843272686,
+        "p75": 10.856080334633589,
+        "p90": 11.72469025477767
+      },
+      "failed_official_success": 185.0,
+      "failed_ever_stable": 0.0,
+      "failed_jam": 10.0,
+      "failed_depth_gt_2": 3
+    },
+    {
+      "task": "01125",
+      "seed": "pooled",
+      "episodes": 200,
+      "successes": 0,
+      "failures": 200,
+      "failed_depth": {
+        "n": 200,
+        "mean": 0.9485085822362452,
+        "sample_std": 1.4723209230003043,
+        "min": 0.0,
+        "max": 8.719902038574219,
+        "p10": 0.2701934188604355,
+        "p25": 0.45322876423597336,
+        "median": 0.6317459344863892,
+        "p75": 0.8425290882587433,
+        "p90": 1.0269306540489196
+      },
+      "successful_depth": {
+        "n": 0,
+        "mean": null,
+        "sample_std": null,
+        "min": null,
+        "p10": null,
+        "p25": null,
+        "median": null,
+        "p75": null,
+        "p90": null,
+        "max": null
+      },
+      "all_depth": {
+        "n": 200,
+        "mean": 0.9485085822362452,
+        "sample_std": 1.4723209230003043,
+        "min": 0.0,
+        "max": 8.719902038574219,
+        "p10": 0.2701934188604355,
+        "p25": 0.45322876423597336,
+        "median": 0.6317459344863892,
+        "p75": 0.8425290882587433,
+        "p90": 1.0269306540489196
+      },
+      "depth_bands": {
+        "le_0p5": 68,
+        "gt_0p5_le_0p85": 82,
+        "gt_0p85_lt_1": 23,
+        "ge_1": 27
+      },
+      "failure_categories": {
+        "depth_not_met": 150,
+        "lateral_after_depth": 50,
+        "jam_after_depth_lateral": 0,
+        "terminal_process_not_stable": 0
+      },
+      "failed_lateral_mm": {
+        "n": 200,
+        "mean": 12.15980825771112,
+        "sample_std": 12.447130189772672,
+        "min": 1.5163867501541972,
+        "max": 114.5210787653923,
+        "p10": 7.415316207334399,
+        "p25": 9.910451248288155,
+        "median": 9.97021934017539,
+        "p75": 10.234797140583396,
+        "p90": 11.127347964793444
+      },
+      "failed_official_success": 180.0,
+      "failed_ever_stable": 0.0,
+      "failed_jam": 12.0,
+      "failed_depth_gt_2": 12
+    }
+  ],
+  "by_seed": [
+    {
+      "task": "00062",
+      "seed": 5101,
+      "episodes": 100,
+      "successes": 0,
+      "failures": 100,
+      "failed_depth": {
+        "n": 100,
+        "mean": 0.4041757819801569,
+        "sample_std": 0.36202086156421714,
+        "min": 0.0,
+        "max": 3.7768023014068604,
+        "p10": 0.18790671229362488,
+        "p25": 0.3190808892250061,
+        "median": 0.43175043165683746,
+        "p75": 0.45439397543668747,
+        "p90": 0.46270884573459625
+      },
+      "successful_depth": {
+        "n": 0,
+        "mean": null,
+        "sample_std": null,
+        "min": null,
+        "p10": null,
+        "p25": null,
+        "median": null,
+        "p75": null,
+        "p90": null,
+        "max": null
+      },
+      "all_depth": {
+        "n": 100,
+        "mean": 0.4041757819801569,
+        "sample_std": 0.36202086156421714,
+        "min": 0.0,
+        "max": 3.7768023014068604,
+        "p10": 0.18790671229362488,
+        "p25": 0.3190808892250061,
+        "median": 0.43175043165683746,
+        "p75": 0.45439397543668747,
+        "p90": 0.46270884573459625
+      },
+      "depth_bands": {
+        "le_0p5": 99,
+        "gt_0p5_le_0p85": 0,
+        "gt_0p85_lt_1": 0,
+        "ge_1": 1
+      },
+      "failure_categories": {
+        "depth_not_met": 99,
+        "lateral_after_depth": 1,
+        "jam_after_depth_lateral": 0,
+        "terminal_process_not_stable": 0
+      },
+      "failed_lateral_mm": {
+        "n": 100,
+        "mean": 24.957396725731087,
+        "sample_std": 120.15775982118979,
+        "min": 0.12024318129988387,
+        "max": 1074.8291015625,
+        "p10": 0.7567911001387984,
+        "p25": 1.3697775430046022,
+        "median": 2.6781170163303614,
+        "p75": 18.021746538579464,
+        "p90": 24.617630243301395
+      },
+      "failed_official_success": 45.0,
+      "failed_ever_stable": 0.0,
+      "failed_jam": 46.0,
+      "failed_depth_gt_2": 1
+    },
+    {
+      "task": "00062",
+      "seed": 5102,
+      "episodes": 100,
+      "successes": 0,
+      "failures": 100,
+      "failed_depth": {
+        "n": 100,
+        "mean": 0.37052386328577996,
+        "sample_std": 0.22437404117799603,
+        "min": 0.0,
+        "max": 2.0557894706726074,
+        "p10": 0.08376355469226839,
+        "p25": 0.2996870204806328,
+        "median": 0.43862637877464294,
+        "p75": 0.45643187314271927,
+        "p90": 0.461672842502594
+      },
+      "successful_depth": {
+        "n": 0,
+        "mean": null,
+        "sample_std": null,
+        "min": null,
+        "p10": null,
+        "p25": null,
+        "median": null,
+        "p75": null,
+        "p90": null,
+        "max": null
+      },
+      "all_depth": {
+        "n": 100,
+        "mean": 0.37052386328577996,
+        "sample_std": 0.22437404117799603,
+        "min": 0.0,
+        "max": 2.0557894706726074,
+        "p10": 0.08376355469226839,
+        "p25": 0.2996870204806328,
+        "median": 0.43862637877464294,
+        "p75": 0.45643187314271927,
+        "p90": 0.461672842502594
+      },
+      "depth_bands": {
+        "le_0p5": 99,
+        "gt_0p5_le_0p85": 0,
+        "gt_0p85_lt_1": 0,
+        "ge_1": 1
+      },
+      "failure_categories": {
+        "depth_not_met": 99,
+        "lateral_after_depth": 1,
+        "jam_after_depth_lateral": 0,
+        "terminal_process_not_stable": 0
+      },
+      "failed_lateral_mm": {
+        "n": 100,
+        "mean": 8.719579628814245,
+        "sample_std": 12.567157489922645,
+        "min": 0.10756483243312687,
+        "max": 82.34749734401703,
+        "p10": 0.6499601411633193,
+        "p25": 1.0935564350802451,
+        "median": 2.457968541420996,
+        "p75": 16.584547236561775,
+        "p90": 23.77354111522437
+      },
+      "failed_official_success": 47.0,
+      "failed_ever_stable": 0.0,
+      "failed_jam": 47.0,
+      "failed_depth_gt_2": 1
+    },
+    {
+      "task": "00186",
+      "seed": 5101,
+      "episodes": 100,
+      "successes": 8,
+      "failures": 92,
+      "failed_depth": {
+        "n": 92,
+        "mean": 0.948850410140079,
+        "sample_std": 0.13197346424356124,
+        "min": 0.2270517647266388,
+        "max": 1.1948846578598022,
+        "p10": 0.8794593155384064,
+        "p25": 0.9145650416612625,
+        "median": 0.9727561175823212,
+        "p75": 1.010708749294281,
+        "p90": 1.0386648654937745
+      },
+      "successful_depth": {
+        "n": 8,
+        "mean": 0.9804091826081276,
+        "sample_std": 0.08511834342091151,
+        "min": 0.8693249821662903,
+        "max": 1.0900275707244873,
+        "p10": 0.8929682552814484,
+        "p25": 0.9265304058790207,
+        "median": 0.9526248872280121,
+        "p75": 1.0659966468811035,
+        "p90": 1.082904326915741
+      },
+      "all_depth": {
+        "n": 100,
+        "mean": 0.9513751119375229,
+        "sample_std": 0.12882502159916845,
+        "min": 0.2270517647266388,
+        "max": 1.1948846578598022,
+        "p10": 0.8788236618041992,
+        "p25": 0.9145650416612625,
+        "median": 0.9716019928455353,
+        "p75": 1.0123373568058014,
+        "p90": 1.0509220361709595
+      },
+      "depth_bands": {
+        "le_0p5": 3,
+        "gt_0p5_le_0p85": 3,
+        "gt_0p85_lt_1": 56,
+        "ge_1": 30
+      },
+      "failure_categories": {
+        "depth_not_met": 6,
+        "lateral_after_depth": 85,
+        "jam_after_depth_lateral": 0,
+        "terminal_process_not_stable": 1
+      },
+      "failed_lateral_mm": {
+        "n": 92,
+        "mean": 1.517076616911926,
+        "sample_std": 0.22712147528094062,
+        "min": 0.3336504159960896,
+        "max": 1.7754598520696163,
+        "p10": 1.1786765069700778,
+        "p25": 1.4783145452383906,
+        "median": 1.5964913764037192,
+        "p75": 1.6557759663555771,
+        "p90": 1.6793792019598186
+      },
+      "failed_official_success": 89.0,
+      "failed_ever_stable": 13.0,
+      "failed_jam": 31.0,
+      "failed_depth_gt_2": 0
+    },
+    {
+      "task": "00186",
+      "seed": 5102,
+      "episodes": 100,
+      "successes": 12,
+      "failures": 88,
+      "failed_depth": {
+        "n": 88,
+        "mean": 0.9242850797758861,
+        "sample_std": 0.17367189516745926,
+        "min": 0.0,
+        "max": 1.1022661924362183,
+        "p10": 0.8592687129974366,
+        "p25": 0.8980884104967117,
+        "median": 0.9539124071598053,
+        "p75": 1.0009933710098267,
+        "p90": 1.0510250568389892
+      },
+      "successful_depth": {
+        "n": 12,
+        "mean": 0.9811350405216217,
+        "sample_std": 0.06245389550733612,
+        "min": 0.8637298345565796,
+        "max": 1.0838065147399902,
+        "p10": 0.9288200855255127,
+        "p25": 0.9385684132575989,
+        "median": 0.978928804397583,
+        "p75": 1.0324988067150116,
+        "p90": 1.0490126132965087
+      },
+      "all_depth": {
+        "n": 100,
+        "mean": 0.9311070750653744,
+        "sample_std": 0.1651788775737214,
+        "min": 0.0,
+        "max": 1.1022661924362183,
+        "p10": 0.8634950697422028,
+        "p25": 0.9067267626523972,
+        "median": 0.9551056921482086,
+        "p75": 1.0024118423461914,
+        "p90": 1.0500190734863282
+      },
+      "depth_bands": {
+        "le_0p5": 4,
+        "gt_0p5_le_0p85": 3,
+        "gt_0p85_lt_1": 58,
+        "ge_1": 23
+      },
+      "failure_categories": {
+        "depth_not_met": 7,
+        "lateral_after_depth": 81,
+        "jam_after_depth_lateral": 0,
+        "terminal_process_not_stable": 0
+      },
+      "failed_lateral_mm": {
+        "n": 88,
+        "mean": 1.5988547893357463,
+        "sample_std": 0.7173711059500086,
+        "min": 0.7039770134724677,
+        "max": 7.902920246124268,
+        "p10": 1.1735309613868594,
+        "p25": 1.4614248066209257,
+        "median": 1.6068403492681682,
+        "p75": 1.6468178655486554,
+        "p90": 1.7133404151536524
+      },
+      "failed_official_success": 84.0,
+      "failed_ever_stable": 15.0,
+      "failed_jam": 26.0,
+      "failed_depth_gt_2": 0
+    },
+    {
+      "task": "00256",
+      "seed": 5101,
+      "episodes": 100,
+      "successes": 0,
+      "failures": 100,
+      "failed_depth": {
+        "n": 100,
+        "mean": 0.9536546120792627,
+        "sample_std": 1.1654221615269038,
+        "min": 0.09678497165441513,
+        "max": 11.342724800109863,
+        "p10": 0.36375288367271424,
+        "p25": 0.5324276387691498,
+        "median": 0.8777434229850769,
+        "p75": 1.0124861896038055,
+        "p90": 1.28816773891449
+      },
+      "successful_depth": {
+        "n": 0,
+        "mean": null,
+        "sample_std": null,
+        "min": null,
+        "p10": null,
+        "p25": null,
+        "median": null,
+        "p75": null,
+        "p90": null,
+        "max": null
+      },
+      "all_depth": {
+        "n": 100,
+        "mean": 0.9536546120792627,
+        "sample_std": 1.1654221615269038,
+        "min": 0.09678497165441513,
+        "max": 11.342724800109863,
+        "p10": 0.36375288367271424,
+        "p25": 0.5324276387691498,
+        "median": 0.8777434229850769,
+        "p75": 1.0124861896038055,
+        "p90": 1.28816773891449
+      },
+      "depth_bands": {
+        "le_0p5": 21,
+        "gt_0p5_le_0p85": 26,
+        "gt_0p85_lt_1": 26,
+        "ge_1": 27
+      },
+      "failure_categories": {
+        "depth_not_met": 47,
+        "lateral_after_depth": 53,
+        "jam_after_depth_lateral": 0,
+        "terminal_process_not_stable": 0
+      },
+      "failed_lateral_mm": {
+        "n": 100,
+        "mean": 11.763788007665426,
+        "sample_std": 11.152055248290274,
+        "min": 3.582561621442437,
+        "max": 120.62259763479233,
+        "p10": 9.997959434986115,
+        "p25": 10.038098553195596,
+        "median": 10.133118368685246,
+        "p75": 10.45292615890503,
+        "p90": 12.226966116577387
+      },
+      "failed_official_success": 63.0,
+      "failed_ever_stable": 0.0,
+      "failed_jam": 17.0,
+      "failed_depth_gt_2": 2
+    },
+    {
+      "task": "00256",
+      "seed": 5102,
+      "episodes": 100,
+      "successes": 0,
+      "failures": 100,
+      "failed_depth": {
+        "n": 100,
+        "mean": 1.0558032968640327,
+        "sample_std": 1.6047793076444776,
+        "min": 0.24973446130752563,
+        "max": 12.23770523071289,
+        "p10": 0.4477278798818588,
+        "p25": 0.5801471173763275,
+        "median": 0.8695845305919647,
+        "p75": 1.047668606042862,
+        "p90": 1.276776194572449
+      },
+      "successful_depth": {
+        "n": 0,
+        "mean": null,
+        "sample_std": null,
+        "min": null,
+        "p10": null,
+        "p25": null,
+        "median": null,
+        "p75": null,
+        "p90": null,
+        "max": null
+      },
+      "all_depth": {
+        "n": 100,
+        "mean": 1.0558032968640327,
+        "sample_std": 1.6047793076444776,
+        "min": 0.24973446130752563,
+        "max": 12.23770523071289,
+        "p10": 0.4477278798818588,
+        "p25": 0.5801471173763275,
+        "median": 0.8695845305919647,
+        "p75": 1.047668606042862,
+        "p90": 1.276776194572449
+      },
+      "depth_bands": {
+        "le_0p5": 15,
+        "gt_0p5_le_0p85": 34,
+        "gt_0p85_lt_1": 20,
+        "ge_1": 31
+      },
+      "failure_categories": {
+        "depth_not_met": 49,
+        "lateral_after_depth": 51,
+        "jam_after_depth_lateral": 0,
+        "terminal_process_not_stable": 0
+      },
+      "failed_lateral_mm": {
+        "n": 100,
+        "mean": 15.62769815325737,
+        "sample_std": 39.74951200291855,
+        "min": 9.94800589978695,
+        "max": 380.2609443664551,
+        "p10": 10.014002490788698,
+        "p25": 10.065504349768162,
+        "median": 10.14096150174737,
+        "p75": 10.35680016502738,
+        "p90": 11.221546493470672
+      },
+      "failed_official_success": 65.0,
+      "failed_ever_stable": 0.0,
+      "failed_jam": 8.0,
+      "failed_depth_gt_2": 2
+    },
+    {
+      "task": "00271",
+      "seed": 5101,
+      "episodes": 100,
+      "successes": 83,
+      "failures": 17,
+      "failed_depth": {
+        "n": 17,
+        "mean": 0.827144622364465,
+        "sample_std": 0.21083778455948757,
+        "min": 0.04825376719236374,
+        "max": 0.9559003114700317,
+        "p10": 0.7844050765037537,
+        "p25": 0.8075851798057556,
+        "median": 0.8717761635780334,
+        "p75": 0.943808376789093,
+        "p90": 0.9502973794937134
+      },
+      "successful_depth": {
+        "n": 83,
+        "mean": 0.9638878480497614,
+        "sample_std": 0.0346164348557031,
+        "min": 0.8580081462860107,
+        "max": 0.9996585845947266,
+        "p10": 0.9122845292091369,
+        "p25": 0.948335736989975,
+        "median": 0.9769155383110046,
+        "p75": 0.9890884757041931,
+        "p90": 0.9957827210426331
+      },
+      "all_depth": {
+        "n": 100,
+        "mean": 0.9406414996832609,
+        "sample_std": 0.10412406825112284,
+        "min": 0.04825376719236374,
+        "max": 0.9996585845947266,
+        "p10": 0.8696796000003815,
+        "p25": 0.9255615621805191,
+        "median": 0.9690097868442535,
+        "p75": 0.9873066246509552,
+        "p90": 0.9953757107257843
+      },
+      "depth_bands": {
+        "le_0p5": 1,
+        "gt_0p5_le_0p85": 7,
+        "gt_0p85_lt_1": 9,
+        "ge_1": 0
+      },
+      "failure_categories": {
+        "depth_not_met": 8,
+        "lateral_after_depth": 9,
+        "jam_after_depth_lateral": 0,
+        "terminal_process_not_stable": 0
+      },
+      "failed_lateral_mm": {
+        "n": 17,
+        "mean": 1.2100169594358543,
+        "sample_std": 1.1087167385496617,
+        "min": 0.02590876101749018,
+        "max": 4.925838205963373,
+        "p10": 0.10901385394390672,
+        "p25": 0.6926782079972327,
+        "median": 1.1358448537066579,
+        "p75": 1.4582250732928514,
+        "p90": 1.6454177908599377
+      },
+      "failed_official_success": 16.0,
+      "failed_ever_stable": 4.0,
+      "failed_jam": 1.0,
+      "failed_depth_gt_2": 0
+    },
+    {
+      "task": "00271",
+      "seed": 5102,
+      "episodes": 100,
+      "successes": 82,
+      "failures": 18,
+      "failed_depth": {
+        "n": 18,
+        "mean": 0.7564413903488053,
+        "sample_std": 0.338313684668931,
+        "min": 0.0,
+        "max": 0.9626615643501282,
+        "p10": 0.047753216326236726,
+        "p25": 0.8121119141578674,
+        "median": 0.8993847668170929,
+        "p75": 0.9510258585214615,
+        "p90": 0.957734352350235
+      },
+      "successful_depth": {
+        "n": 82,
+        "mean": 0.9636352890875282,
+        "sample_std": 0.03260348161344324,
+        "min": 0.8724473714828491,
+        "max": 0.9992458820343018,
+        "p10": 0.9093953609466553,
+        "p25": 0.9571191370487213,
+        "median": 0.9739938974380493,
+        "p75": 0.9872174113988876,
+        "p90": 0.9951673805713653
+      },
+      "all_depth": {
+        "n": 100,
+        "mean": 0.926340387314558,
+        "sample_std": 0.16408587076166378,
+        "min": 0.0,
+        "max": 0.9992458820343018,
+        "p10": 0.8860115349292755,
+        "p25": 0.9277505725622177,
+        "median": 0.9648452401161194,
+        "p75": 0.9845752120018005,
+        "p90": 0.9934501767158508
+      },
+      "depth_bands": {
+        "le_0p5": 3,
+        "gt_0p5_le_0p85": 3,
+        "gt_0p85_lt_1": 12,
+        "ge_1": 0
+      },
+      "failure_categories": {
+        "depth_not_met": 6,
+        "lateral_after_depth": 12,
+        "jam_after_depth_lateral": 0,
+        "terminal_process_not_stable": 0
+      },
+      "failed_lateral_mm": {
+        "n": 18,
+        "mean": 2.478178299497813,
+        "sample_std": 3.333539148458459,
+        "min": 0.9511997923254967,
+        "max": 14.537262730300426,
+        "p10": 1.0436821612529457,
+        "p25": 1.0860777692869306,
+        "median": 1.3756953412666917,
+        "p75": 1.8843869911506772,
+        "p90": 3.9572709705680644
+      },
+      "failed_official_success": 15.0,
+      "failed_ever_stable": 2.0,
+      "failed_jam": 3.0,
+      "failed_depth_gt_2": 0
+    },
+    {
+      "task": "00726",
+      "seed": 5101,
+      "episodes": 100,
+      "successes": 62,
+      "failures": 38,
+      "failed_depth": {
+        "n": 38,
+        "mean": 0.989973606247651,
+        "sample_std": 0.10351986752985513,
+        "min": 0.6412690281867981,
+        "max": 1.3068214654922485,
+        "p10": 0.9425405085086822,
+        "p25": 0.951544389128685,
+        "median": 0.9749283790588379,
+        "p75": 0.9966026395559311,
+        "p90": 1.0657062172889713
+      },
+      "successful_depth": {
+        "n": 62,
+        "mean": 0.9754280601778338,
+        "sample_std": 0.026467443338882155,
+        "min": 0.9247881174087524,
+        "max": 1.062989354133606,
+        "p10": 0.9454088628292083,
+        "p25": 0.9545383155345917,
+        "median": 0.9739499390125275,
+        "p75": 0.9982689470052719,
+        "p90": 1.002459216117859
+      },
+      "all_depth": {
+        "n": 100,
+        "mean": 0.9809553676843643,
+        "sample_std": 0.06698576260285516,
+        "min": 0.6412690281867981,
+        "max": 1.3068214654922485,
+        "p10": 0.9430264890193939,
+        "p25": 0.9515678435564041,
+        "median": 0.9739499390125275,
+        "p75": 0.9970073848962784,
+        "p90": 1.0117434501647948
+      },
+      "depth_bands": {
+        "le_0p5": 0,
+        "gt_0p5_le_0p85": 1,
+        "gt_0p85_lt_1": 29,
+        "ge_1": 8
+      },
+      "failure_categories": {
+        "depth_not_met": 1,
+        "lateral_after_depth": 35,
+        "jam_after_depth_lateral": 0,
+        "terminal_process_not_stable": 2
+      },
+      "failed_lateral_mm": {
+        "n": 38,
+        "mean": 2.997281892212892,
+        "sample_std": 2.1267372121715318,
+        "min": 0.5852074245922267,
+        "max": 10.264171287417412,
+        "p10": 1.4896495500579476,
+        "p25": 1.9428387749940157,
+        "median": 2.487119403667748,
+        "p75": 3.0547562637366354,
+        "p90": 5.16035207547248
+      },
+      "failed_official_success": 35.0,
+      "failed_ever_stable": 0.0,
+      "failed_jam": 6.0,
+      "failed_depth_gt_2": 0
+    },
+    {
+      "task": "00726",
+      "seed": 5102,
+      "episodes": 100,
+      "successes": 63,
+      "failures": 37,
+      "failed_depth": {
+        "n": 37,
+        "mean": 1.1067185546900775,
+        "sample_std": 0.8165520164145667,
+        "min": 0.9095560908317566,
+        "max": 5.930413722991943,
+        "p10": 0.9374473214149475,
+        "p25": 0.9461103677749634,
+        "median": 0.9591747522354126,
+        "p75": 0.9886453151702881,
+        "p90": 1.0190022468566895
+      },
+      "successful_depth": {
+        "n": 63,
+        "mean": 0.9794472673582653,
+        "sample_std": 0.026622476757495406,
+        "min": 0.9295096397399902,
+        "max": 1.0820515155792236,
+        "p10": 0.953249204158783,
+        "p25": 0.9611581563949585,
+        "median": 0.9735429883003235,
+        "p75": 0.9990388751029968,
+        "p90": 1.0104483366012573
+      },
+      "all_depth": {
+        "n": 100,
+        "mean": 1.0265376436710358,
+        "sample_std": 0.49670405446366167,
+        "min": 0.9095560908317566,
+        "max": 5.930413722991943,
+        "p10": 0.9410774171352386,
+        "p25": 0.9562833905220032,
+        "median": 0.9711340367794037,
+        "p75": 0.994176059961319,
+        "p90": 1.0131801247596741
+      },
+      "depth_bands": {
+        "le_0p5": 0,
+        "gt_0p5_le_0p85": 0,
+        "gt_0p85_lt_1": 32,
+        "ge_1": 5
+      },
+      "failure_categories": {
+        "depth_not_met": 0,
+        "lateral_after_depth": 37,
+        "jam_after_depth_lateral": 0,
+        "terminal_process_not_stable": 0
+      },
+      "failed_lateral_mm": {
+        "n": 37,
+        "mean": 12.612340248164696,
+        "sample_std": 60.74015498545405,
+        "min": 1.0604343842715025,
+        "max": 371.9744682312012,
+        "p10": 1.6039402224123478,
+        "p25": 1.7554879887029529,
+        "median": 2.2598463110625744,
+        "p75": 3.0300579965114594,
+        "p90": 3.951245266944169
+      },
+      "failed_official_success": 35.0,
+      "failed_ever_stable": 1.0,
+      "failed_jam": 4.0,
+      "failed_depth_gt_2": 1
+    },
+    {
+      "task": "01079",
+      "seed": 5101,
+      "episodes": 100,
+      "successes": 0,
+      "failures": 100,
+      "failed_depth": {
+        "n": 100,
+        "mean": 0.813468535989523,
+        "sample_std": 0.21406012941198937,
+        "min": 0.0,
+        "max": 1.1886646747589111,
+        "p10": 0.49953270256519317,
+        "p25": 0.7909875363111496,
+        "median": 0.8685972988605499,
+        "p75": 0.9436462223529816,
+        "p90": 0.9793814897537232
+      },
+      "successful_depth": {
+        "n": 0,
+        "mean": null,
+        "sample_std": null,
+        "min": null,
+        "p10": null,
+        "p25": null,
+        "median": null,
+        "p75": null,
+        "p90": null,
+        "max": null
+      },
+      "all_depth": {
+        "n": 100,
+        "mean": 0.813468535989523,
+        "sample_std": 0.21406012941198937,
+        "min": 0.0,
+        "max": 1.1886646747589111,
+        "p10": 0.49953270256519317,
+        "p25": 0.7909875363111496,
+        "median": 0.8685972988605499,
+        "p75": 0.9436462223529816,
+        "p90": 0.9793814897537232
+      },
+      "depth_bands": {
+        "le_0p5": 11,
+        "gt_0p5_le_0p85": 35,
+        "gt_0p85_lt_1": 46,
+        "ge_1": 8
+      },
+      "failure_categories": {
+        "depth_not_met": 46,
+        "lateral_after_depth": 54,
+        "jam_after_depth_lateral": 0,
+        "terminal_process_not_stable": 0
+      },
+      "failed_lateral_mm": {
+        "n": 100,
+        "mean": 15.322694489732385,
+        "sample_std": 39.15396616081826,
+        "min": 9.07263532280922,
+        "max": 402.8034806251526,
+        "p10": 10.736990720033646,
+        "p25": 10.880791814997792,
+        "median": 11.090810410678387,
+        "p75": 11.730824830010533,
+        "p90": 12.594456598162653
+      },
+      "failed_official_success": 87.0,
+      "failed_ever_stable": 0.0,
+      "failed_jam": 3.0,
+      "failed_depth_gt_2": 0
+    },
+    {
+      "task": "01079",
+      "seed": 5102,
+      "episodes": 100,
+      "successes": 0,
+      "failures": 100,
+      "failed_depth": {
+        "n": 100,
+        "mean": 0.8569310288876295,
+        "sample_std": 0.7869681329571703,
+        "min": 0.04038121551275253,
+        "max": 8.35150146484375,
+        "p10": 0.4396940052509308,
+        "p25": 0.7231199592351913,
+        "median": 0.8422084152698517,
+        "p75": 0.9163257032632828,
+        "p90": 0.9739861786365509
+      },
+      "successful_depth": {
+        "n": 0,
+        "mean": null,
+        "sample_std": null,
+        "min": null,
+        "p10": null,
+        "p25": null,
+        "median": null,
+        "p75": null,
+        "p90": null,
+        "max": null
+      },
+      "all_depth": {
+        "n": 100,
+        "mean": 0.8569310288876295,
+        "sample_std": 0.7869681329571703,
+        "min": 0.04038121551275253,
+        "max": 8.35150146484375,
+        "p10": 0.4396940052509308,
+        "p25": 0.7231199592351913,
+        "median": 0.8422084152698517,
+        "p75": 0.9163257032632828,
+        "p90": 0.9739861786365509
+      },
+      "depth_bands": {
+        "le_0p5": 12,
+        "gt_0p5_le_0p85": 40,
+        "gt_0p85_lt_1": 42,
+        "ge_1": 6
+      },
+      "failure_categories": {
+        "depth_not_met": 52,
+        "lateral_after_depth": 48,
+        "jam_after_depth_lateral": 0,
+        "terminal_process_not_stable": 0
+      },
+      "failed_lateral_mm": {
+        "n": 100,
+        "mean": 12.588518825359643,
+        "sample_std": 12.531621636320276,
+        "min": 7.548673544079065,
+        "max": 136.28661632537842,
+        "p10": 10.688463132828474,
+        "p25": 10.836006607860327,
+        "median": 11.043425183743238,
+        "p75": 11.789074167609215,
+        "p90": 12.44657188653946
+      },
+      "failed_official_success": 88.0,
+      "failed_ever_stable": 0.0,
+      "failed_jam": 3.0,
+      "failed_depth_gt_2": 1
+    },
+    {
+      "task": "01029",
+      "seed": 5101,
+      "episodes": 100,
+      "successes": 0,
+      "failures": 100,
+      "failed_depth": {
+        "n": 100,
+        "mean": 0.4637800071388483,
+        "sample_std": 0.7121248956350501,
+        "min": 0.0,
+        "max": 7.213401794433594,
+        "p10": 0.294726499915123,
+        "p25": 0.3345162570476532,
+        "median": 0.34947215020656586,
+        "p75": 0.37982579320669174,
+        "p90": 0.597762143611908
+      },
+      "successful_depth": {
+        "n": 0,
+        "mean": null,
+        "sample_std": null,
+        "min": null,
+        "p10": null,
+        "p25": null,
+        "median": null,
+        "p75": null,
+        "p90": null,
+        "max": null
+      },
+      "all_depth": {
+        "n": 100,
+        "mean": 0.4637800071388483,
+        "sample_std": 0.7121248956350501,
+        "min": 0.0,
+        "max": 7.213401794433594,
+        "p10": 0.294726499915123,
+        "p25": 0.3345162570476532,
+        "median": 0.34947215020656586,
+        "p75": 0.37982579320669174,
+        "p90": 0.597762143611908
+      },
+      "depth_bands": {
+        "le_0p5": 85,
+        "gt_0p5_le_0p85": 12,
+        "gt_0p85_lt_1": 0,
+        "ge_1": 3
+      },
+      "failure_categories": {
+        "depth_not_met": 97,
+        "lateral_after_depth": 3,
+        "jam_after_depth_lateral": 0,
+        "terminal_process_not_stable": 0
+      },
+      "failed_lateral_mm": {
+        "n": 100,
+        "mean": 28.399337170412764,
+        "sample_std": 60.359289297551015,
+        "min": 0.32893504248932004,
+        "max": 621.9031810760498,
+        "p10": 16.603597532957792,
+        "p25": 18.865184858441353,
+        "median": 21.799849346280098,
+        "p75": 24.424174334853888,
+        "p90": 29.689037986099724
+      },
+      "failed_official_success": 0.0,
+      "failed_ever_stable": 0.0,
+      "failed_jam": 34.0,
+      "failed_depth_gt_2": 1
+    },
+    {
+      "task": "01029",
+      "seed": 5102,
+      "episodes": 100,
+      "successes": 0,
+      "failures": 100,
+      "failed_depth": {
+        "n": 100,
+        "mean": 0.562562202513218,
+        "sample_std": 0.9200655580246705,
+        "min": 0.03815337270498276,
+        "max": 7.430126667022705,
+        "p10": 0.3197519302368164,
+        "p25": 0.3349177911877632,
+        "median": 0.3489024043083191,
+        "p75": 0.3773736208677292,
+        "p90": 0.7776230156421663
+      },
+      "successful_depth": {
+        "n": 0,
+        "mean": null,
+        "sample_std": null,
+        "min": null,
+        "p10": null,
+        "p25": null,
+        "median": null,
+        "p75": null,
+        "p90": null,
+        "max": null
+      },
+      "all_depth": {
+        "n": 100,
+        "mean": 0.562562202513218,
+        "sample_std": 0.9200655580246705,
+        "min": 0.03815337270498276,
+        "max": 7.430126667022705,
+        "p10": 0.3197519302368164,
+        "p25": 0.3349177911877632,
+        "median": 0.3489024043083191,
+        "p75": 0.3773736208677292,
+        "p90": 0.7776230156421663
+      },
+      "depth_bands": {
+        "le_0p5": 83,
+        "gt_0p5_le_0p85": 10,
+        "gt_0p85_lt_1": 2,
+        "ge_1": 5
+      },
+      "failure_categories": {
+        "depth_not_met": 93,
+        "lateral_after_depth": 7,
+        "jam_after_depth_lateral": 0,
+        "terminal_process_not_stable": 0
+      },
+      "failed_lateral_mm": {
+        "n": 100,
+        "mean": 35.47221755841747,
+        "sample_std": 66.41206179964887,
+        "min": 0.45831064926460385,
+        "max": 472.5092053413391,
+        "p10": 16.59913444891572,
+        "p25": 18.92217807471752,
+        "median": 21.18397317826748,
+        "p75": 23.860123474150896,
+        "p90": 38.538596406579046
+      },
+      "failed_official_success": 0.0,
+      "failed_ever_stable": 0.0,
+      "failed_jam": 33.0,
+      "failed_depth_gt_2": 3
+    },
+    {
+      "task": "01092",
+      "seed": 5101,
+      "episodes": 100,
+      "successes": 0,
+      "failures": 100,
+      "failed_depth": {
+        "n": 100,
+        "mean": 0.7404789784550667,
+        "sample_std": 0.08737583280251188,
+        "min": 0.4339783489704132,
+        "max": 0.988853931427002,
+        "p10": 0.6459598004817962,
+        "p25": 0.6860916018486023,
+        "median": 0.7295061647891998,
+        "p75": 0.7961598485708237,
+        "p90": 0.8486045062541961
+      },
+      "successful_depth": {
+        "n": 0,
+        "mean": null,
+        "sample_std": null,
+        "min": null,
+        "p10": null,
+        "p25": null,
+        "median": null,
+        "p75": null,
+        "p90": null,
+        "max": null
+      },
+      "all_depth": {
+        "n": 100,
+        "mean": 0.7404789784550667,
+        "sample_std": 0.08737583280251188,
+        "min": 0.4339783489704132,
+        "max": 0.988853931427002,
+        "p10": 0.6459598004817962,
+        "p25": 0.6860916018486023,
+        "median": 0.7295061647891998,
+        "p75": 0.7961598485708237,
+        "p90": 0.8486045062541961
+      },
+      "depth_bands": {
+        "le_0p5": 1,
+        "gt_0p5_le_0p85": 89,
+        "gt_0p85_lt_1": 10,
+        "ge_1": 0
+      },
+      "failure_categories": {
+        "depth_not_met": 90,
+        "lateral_after_depth": 10,
+        "jam_after_depth_lateral": 0,
+        "terminal_process_not_stable": 0
+      },
+      "failed_lateral_mm": {
+        "n": 100,
+        "mean": 12.221444072201848,
+        "sample_std": 0.5574307114477071,
+        "min": 11.81122101843357,
+        "max": 15.118608251214027,
+        "p10": 11.878469865769148,
+        "p25": 11.923275655135512,
+        "median": 11.991080828011036,
+        "p75": 12.277033878490329,
+        "p90": 12.857979163527489
+      },
+      "failed_official_success": 98.0,
+      "failed_ever_stable": 0.0,
+      "failed_jam": 0.0,
+      "failed_depth_gt_2": 0
+    },
+    {
+      "task": "01092",
+      "seed": 5102,
+      "episodes": 100,
+      "successes": 0,
+      "failures": 100,
+      "failed_depth": {
+        "n": 100,
+        "mean": 0.7468438076972962,
+        "sample_std": 0.09697478619602844,
+        "min": 0.5369198322296143,
+        "max": 1.2322579622268677,
+        "p10": 0.6383269965648651,
+        "p25": 0.6802253574132919,
+        "median": 0.744173139333725,
+        "p75": 0.8017259538173676,
+        "p90": 0.8570912480354309
+      },
+      "successful_depth": {
+        "n": 0,
+        "mean": null,
+        "sample_std": null,
+        "min": null,
+        "p10": null,
+        "p25": null,
+        "median": null,
+        "p75": null,
+        "p90": null,
+        "max": null
+      },
+      "all_depth": {
+        "n": 100,
+        "mean": 0.7468438076972962,
+        "sample_std": 0.09697478619602844,
+        "min": 0.5369198322296143,
+        "max": 1.2322579622268677,
+        "p10": 0.6383269965648651,
+        "p25": 0.6802253574132919,
+        "median": 0.744173139333725,
+        "p75": 0.8017259538173676,
+        "p90": 0.8570912480354309
+      },
+      "depth_bands": {
+        "le_0p5": 0,
+        "gt_0p5_le_0p85": 86,
+        "gt_0p85_lt_1": 13,
+        "ge_1": 1
+      },
+      "failure_categories": {
+        "depth_not_met": 86,
+        "lateral_after_depth": 14,
+        "jam_after_depth_lateral": 0,
+        "terminal_process_not_stable": 0
+      },
+      "failed_lateral_mm": {
+        "n": 100,
+        "mean": 12.291927579790354,
+        "sample_std": 0.620120564379019,
+        "min": 11.724905110895634,
+        "max": 15.765875577926636,
+        "p10": 11.878903303295374,
+        "p25": 11.92478509619832,
+        "median": 12.016546446830034,
+        "p75": 12.513201916590333,
+        "p90": 13.130256906151772
+      },
+      "failed_official_success": 96.0,
+      "failed_ever_stable": 0.0,
+      "failed_jam": 0.0,
+      "failed_depth_gt_2": 0
+    },
+    {
+      "task": "01102",
+      "seed": 5101,
+      "episodes": 100,
+      "successes": 0,
+      "failures": 100,
+      "failed_depth": {
+        "n": 100,
+        "mean": 0.5118069091439247,
+        "sample_std": 0.20971336927161544,
+        "min": 0.13790224492549896,
+        "max": 1.3812532424926758,
+        "p10": 0.31045788526535034,
+        "p25": 0.3714349940419197,
+        "median": 0.4678700864315033,
+        "p75": 0.5858492851257324,
+        "p90": 0.72881772518158
+      },
+      "successful_depth": {
+        "n": 0,
+        "mean": null,
+        "sample_std": null,
+        "min": null,
+        "p10": null,
+        "p25": null,
+        "median": null,
+        "p75": null,
+        "p90": null,
+        "max": null
+      },
+      "all_depth": {
+        "n": 100,
+        "mean": 0.5118069091439247,
+        "sample_std": 0.20971336927161544,
+        "min": 0.13790224492549896,
+        "max": 1.3812532424926758,
+        "p10": 0.31045788526535034,
+        "p25": 0.3714349940419197,
+        "median": 0.4678700864315033,
+        "p75": 0.5858492851257324,
+        "p90": 0.72881772518158
+      },
+      "depth_bands": {
+        "le_0p5": 59,
+        "gt_0p5_le_0p85": 33,
+        "gt_0p85_lt_1": 4,
+        "ge_1": 4
+      },
+      "failure_categories": {
+        "depth_not_met": 92,
+        "lateral_after_depth": 8,
+        "jam_after_depth_lateral": 0,
+        "terminal_process_not_stable": 0
+      },
+      "failed_lateral_mm": {
+        "n": 100,
+        "mean": 10.346456617116928,
+        "sample_std": 2.332661750978836,
+        "min": 8.442796766757965,
+        "max": 28.933877125382423,
+        "p10": 8.660067711025476,
+        "p25": 9.13539296016097,
+        "median": 9.816565550863743,
+        "p75": 11.014022631570697,
+        "p90": 12.151675298810007
+      },
+      "failed_official_success": 93.0,
+      "failed_ever_stable": 0.0,
+      "failed_jam": 8.0,
+      "failed_depth_gt_2": 0
+    },
+    {
+      "task": "01102",
+      "seed": 5102,
+      "episodes": 100,
+      "successes": 0,
+      "failures": 100,
+      "failed_depth": {
+        "n": 100,
+        "mean": 0.623430740237236,
+        "sample_std": 0.7561423289117404,
+        "min": 0.0,
+        "max": 5.092547416687012,
+        "p10": 0.32181704938411715,
+        "p25": 0.42306527495384216,
+        "median": 0.48475608229637146,
+        "p75": 0.5920285731554031,
+        "p90": 0.6694497466087342
+      },
+      "successful_depth": {
+        "n": 0,
+        "mean": null,
+        "sample_std": null,
+        "min": null,
+        "p10": null,
+        "p25": null,
+        "median": null,
+        "p75": null,
+        "p90": null,
+        "max": null
+      },
+      "all_depth": {
+        "n": 100,
+        "mean": 0.623430740237236,
+        "sample_std": 0.7561423289117404,
+        "min": 0.0,
+        "max": 5.092547416687012,
+        "p10": 0.32181704938411715,
+        "p25": 0.42306527495384216,
+        "median": 0.48475608229637146,
+        "p75": 0.5920285731554031,
+        "p90": 0.6694497466087342
+      },
+      "depth_bands": {
+        "le_0p5": 54,
+        "gt_0p5_le_0p85": 40,
+        "gt_0p85_lt_1": 3,
+        "ge_1": 3
+      },
+      "failure_categories": {
+        "depth_not_met": 94,
+        "lateral_after_depth": 6,
+        "jam_after_depth_lateral": 0,
+        "terminal_process_not_stable": 0
+      },
+      "failed_lateral_mm": {
+        "n": 100,
+        "mean": 21.939864130690694,
+        "sample_std": 92.72056376535328,
+        "min": 8.374862372875214,
+        "max": 923.3644604682922,
+        "p10": 8.504832535982132,
+        "p25": 8.81588296033442,
+        "median": 9.517785161733627,
+        "p75": 10.369076626375318,
+        "p90": 11.506518814712765
+      },
+      "failed_official_success": 92.0,
+      "failed_ever_stable": 0.0,
+      "failed_jam": 2.0,
+      "failed_depth_gt_2": 3
+    },
+    {
+      "task": "01125",
+      "seed": 5101,
+      "episodes": 100,
+      "successes": 0,
+      "failures": 100,
+      "failed_depth": {
+        "n": 100,
+        "mean": 0.8637709383107722,
+        "sample_std": 1.1663172344983537,
+        "min": 0.0,
+        "max": 8.630095481872559,
+        "p10": 0.27019341886043546,
+        "p25": 0.4539560228586197,
+        "median": 0.6211619675159454,
+        "p75": 0.8142570406198502,
+        "p90": 1.0112676024436953
+      },
+      "successful_depth": {
+        "n": 0,
+        "mean": null,
+        "sample_std": null,
+        "min": null,
+        "p10": null,
+        "p25": null,
+        "median": null,
+        "p75": null,
+        "p90": null,
+        "max": null
+      },
+      "all_depth": {
+        "n": 100,
+        "mean": 0.8637709383107722,
+        "sample_std": 1.1663172344983537,
+        "min": 0.0,
+        "max": 8.630095481872559,
+        "p10": 0.27019341886043546,
+        "p25": 0.4539560228586197,
+        "median": 0.6211619675159454,
+        "p75": 0.8142570406198502,
+        "p90": 1.0112676024436953
+      },
+      "depth_bands": {
+        "le_0p5": 36,
+        "gt_0p5_le_0p85": 40,
+        "gt_0p85_lt_1": 11,
+        "ge_1": 13
+      },
+      "failure_categories": {
+        "depth_not_met": 76,
+        "lateral_after_depth": 24,
+        "jam_after_depth_lateral": 0,
+        "terminal_process_not_stable": 0
+      },
+      "failed_lateral_mm": {
+        "n": 100,
+        "mean": 12.506182187935337,
+        "sample_std": 13.713800916032625,
+        "min": 1.5163867501541972,
+        "max": 114.5210787653923,
+        "p10": 7.481562811881304,
+        "p25": 9.890631539747119,
+        "median": 9.96390264481306,
+        "p75": 10.14509005472064,
+        "p90": 11.143468506634237
+      },
+      "failed_official_success": 92.0,
+      "failed_ever_stable": 0.0,
+      "failed_jam": 7.0,
+      "failed_depth_gt_2": 6
+    },
+    {
+      "task": "01125",
+      "seed": 5102,
+      "episodes": 100,
+      "successes": 0,
+      "failures": 100,
+      "failed_depth": {
+        "n": 100,
+        "mean": 1.0332462261617184,
+        "sample_std": 1.7270067064367691,
+        "min": 0.0,
+        "max": 8.719902038574219,
+        "p10": 0.29001345485448843,
+        "p25": 0.4489165470004082,
+        "median": 0.6458333134651184,
+        "p75": 0.8553349524736404,
+        "p90": 1.0822883367538452
+      },
+      "successful_depth": {
+        "n": 0,
+        "mean": null,
+        "sample_std": null,
+        "min": null,
+        "p10": null,
+        "p25": null,
+        "median": null,
+        "p75": null,
+        "p90": null,
+        "max": null
+      },
+      "all_depth": {
+        "n": 100,
+        "mean": 1.0332462261617184,
+        "sample_std": 1.7270067064367691,
+        "min": 0.0,
+        "max": 8.719902038574219,
+        "p10": 0.29001345485448843,
+        "p25": 0.4489165470004082,
+        "median": 0.6458333134651184,
+        "p75": 0.8553349524736404,
+        "p90": 1.0822883367538452
+      },
+      "depth_bands": {
+        "le_0p5": 32,
+        "gt_0p5_le_0p85": 42,
+        "gt_0p85_lt_1": 12,
+        "ge_1": 14
+      },
+      "failure_categories": {
+        "depth_not_met": 74,
+        "lateral_after_depth": 26,
+        "jam_after_depth_lateral": 0,
+        "terminal_process_not_stable": 0
+      },
+      "failed_lateral_mm": {
+        "n": 100,
+        "mean": 11.813434327486902,
+        "sample_std": 11.095780771262506,
+        "min": 2.0891199819743633,
+        "max": 108.15891623497009,
+        "p10": 7.415316207334399,
+        "p25": 9.920347714796662,
+        "median": 9.979400783777237,
+        "p75": 10.316027794033289,
+        "p90": 10.890574287623169
+      },
+      "failed_official_success": 88.0,
+      "failed_ever_stable": 0.0,
+      "failed_jam": 5.0,
+      "failed_depth_gt_2": 6
+    }
+  ],
+  "overall": {
+    "task": "all_tasks",
+    "seed": "pooled",
+    "episodes": 2000,
+    "successes": 310,
+    "failures": 1690,
+    "failed_depth": {
+      "n": 1690,
+      "mean": 0.7543929022455798,
+      "sample_std": 0.8478298618982598,
+      "min": 0.0,
+      "max": 12.23770523071289,
+      "p10": 0.3231205403804779,
+      "p25": 0.4364585727453232,
+      "median": 0.682329386472702,
+      "p75": 0.9161310791969299,
+      "p90": 1.0092779636383058
+    },
+    "successful_depth": {
+      "n": 310,
+      "mean": 0.9703851503710593,
+      "sample_std": 0.03510683587584025,
+      "min": 0.8580081462860107,
+      "max": 1.0900275707244873,
+      "p10": 0.9249175071716309,
+      "p25": 0.9551332592964172,
+      "median": 0.9750986993312836,
+      "p75": 0.9918140023946762,
+      "p90": 1.0001664519309998
+    },
+    "all_depth": {
+      "n": 2000,
+      "mean": 0.7878717007050291,
+      "sample_std": 0.7833563957221364,
+      "min": 0.0,
+      "max": 12.23770523071289,
+      "p10": 0.33595656752586367,
+      "p25": 0.4563187211751938,
+      "median": 0.7815918922424316,
+      "p75": 0.9614162892103195,
+      "p90": 1.002214503288269
+    },
+    "depth_bands": {
+      "le_0p5": 618,
+      "gt_0p5_le_0p85": 504,
+      "gt_0p85_lt_1": 385,
+      "ge_1": 183
+    },
+    "failure_categories": {
+      "depth_not_met": 1122,
+      "lateral_after_depth": 565,
+      "jam_after_depth_lateral": 0,
+      "terminal_process_not_stable": 3
+    },
+    "failed_lateral_mm": {
+      "n": 1690,
+      "mean": 14.392340246429729,
+      "sample_std": 46.95152456230476,
+      "min": 0.02590876101749018,
+      "max": 1074.8291015625,
+      "p10": 1.5575881348922849,
+      "p25": 5.961800925433636,
+      "median": 10.207550134509802,
+      "p75": 12.102063745260239,
+      "p90": 20.92157620936632
+    },
+    "failed_official_success": 1228.0,
+    "failed_ever_stable": 35.0,
+    "failed_jam": 284.0,
+    "failed_depth_gt_2": 27
+  }
+}

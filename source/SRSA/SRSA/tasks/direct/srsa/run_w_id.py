@@ -112,8 +112,11 @@ def main():
     parser.add_argument("--device", type=str, default="cuda:0", help="Simulation and RL device, e.g. cuda:0.")
     parser.add_argument("--seed", type=int, default=-1, help="Random seed used for training.")
     parser.add_argument("--max_iterations", type=int, default=None, help="RL policy training iterations.")
+    parser.add_argument("--minibatch_size", type=int, default=None, help="PPO minibatch size.")
+    parser.add_argument("--central_value_minibatch_size", type=int, default=None, help="Central value minibatch size.")
     parser.add_argument("--experiment_name", type=str, default=None, help="RL-Games experiment/run directory name.")
     parser.add_argument("--train", action="store_true", help="Run training mode.")
+    parser.add_argument("--deterministic", action="store_true", help="Use mean policy actions during evaluation.")
     parser.add_argument("--sil", action="store_true", help="Use self-imitation learning.")
     parser.add_argument("--sparse", action="store_true", help="Use sparse reward environment.")
     parser.add_argument("--no_sbc", action="store_true", help="Disable the SBC curriculum.")
@@ -431,9 +434,17 @@ def main():
 
     command.append(f"--num_envs={args.num_envs}")
     command.append(f"--device={args.device}")
+    if not args.train and args.seed >= 0:
+        command.append(f"--seed={args.seed}")
+    if not args.train and args.deterministic:
+        command.append("--deterministic")
 
     if args.train and args.max_iterations is not None:
         command.append(f"--max_iterations={args.max_iterations}")
+    if args.train and args.minibatch_size is not None:
+        command.append(f"--minibatch_size={args.minibatch_size}")
+    if args.train and args.central_value_minibatch_size is not None:
+        command.append(f"--central_value_minibatch_size={args.central_value_minibatch_size}")
     if args.train and args.experiment_name:
         command.append(f"--experiment_name={args.experiment_name}")
 
